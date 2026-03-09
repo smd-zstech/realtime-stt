@@ -283,9 +283,9 @@ def main():
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.01,
-        help="Silence threshold for voice detection (default: 0.01). "
-             "Lower = more sensitive to quiet sounds.",
+        default=0,
+        help="Silence threshold for voice detection (default: 0 = auto-calibrate). "
+             "Set manually (e.g. 0.01) to skip calibration.",
     )
     parser.add_argument(
         "--beam-size",

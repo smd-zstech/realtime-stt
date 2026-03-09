@@ -1,6 +1,7 @@
 """
 Audio capture module - captures audio from the laptop microphone in real-time.
 Uses Voice Activity Detection (VAD) based on energy threshold to detect speech segments.
+Auto-calibrates silence threshold from ambient noise at startup.
 """
 
 import threading
@@ -17,24 +18,48 @@ class AudioCapture:
         sample_rate: int = 16000,
         channels: int = 1,
         block_duration_ms: int = 30,
-        silence_threshold: float = 0.01,
-        silence_duration: float = 0.6,
-        min_speech_duration: float = 0.3,
-        max_speech_duration: float = 10.0,
+        silence_threshold: float = 0,
+        silence_duration: float = 1.0,
+        min_speech_duration: float = 0.8,
+        max_speech_duration: float = 15.0,
+        calibration_seconds: float = 1.5,
     ):
         self.sample_rate = sample_rate
         self.channels = channels
         self.block_size = int(sample_rate * block_duration_ms / 1000)
+        self._user_threshold = silence_threshold
         self.silence_threshold = silence_threshold
         self.silence_duration = silence_duration
         self.min_speech_duration = min_speech_duration
         self.max_speech_duration = max_speech_duration
+        self._calibration_seconds = calibration_seconds
 
         self._audio_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._segment_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._running = False
         self._stream = None
         self._processor_thread = None
+
+    def _calibrate(self):
+        """Record ambient noise briefly and set threshold automatically."""
+        num_samples = int(self.sample_rate * self._calibration_seconds)
+        print(f"[INFO] Calibrating microphone ({self._calibration_seconds}s silence)...")
+        try:
+            recording = sd.rec(
+                num_samples,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype="float32",
+            )
+            sd.wait()
+            ambient_energy = np.sqrt(np.mean(recording ** 2))
+            # Set threshold to 3x ambient noise (headroom for noise floor)
+            self.silence_threshold = max(ambient_energy * 3, 0.003)
+            print(f"[INFO] Ambient noise: {ambient_energy:.5f}, "
+                  f"threshold set to: {self.silence_threshold:.5f}")
+        except Exception as e:
+            self.silence_threshold = 0.01
+            print(f"[WARN] Calibration failed ({e}), using fallback threshold: {self.silence_threshold}")
 
     def _audio_callback(self, indata, frames, time_info, status):
         """Called by sounddevice for each audio block."""
@@ -86,6 +111,10 @@ class AudioCapture:
 
     def start(self):
         """Start capturing audio from the microphone."""
+        # Auto-calibrate if user didn't specify a manual threshold
+        if self._user_threshold <= 0:
+            self._calibrate()
+
         self._running = True
         self._stream = sd.InputStream(
             samplerate=self.sample_rate,
