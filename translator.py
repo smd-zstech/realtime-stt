@@ -3,7 +3,7 @@ Translation module - translates English text to Korean.
 
 Supports two backends:
 - "google": Google Translate via deep-translator (fast, online)
-- "ai": Helsinki-NLP/opus-mt-en-ko MarianMT model (better quality, offline)
+- "ai": Facebook NLLB-200 model (better quality, offline, ~600MB)
 
 Runs translations in a background thread to avoid blocking the main loop.
 """
@@ -30,21 +30,28 @@ class _GoogleBackend:
         return result if result else "(translation failed)"
 
 
-class _MarianMTBackend:
-    """Local AI translation using Helsinki-NLP/opus-mt-en-ko."""
+class _NLLBBackend:
+    """Local AI translation using Facebook NLLB-200 (distilled, 600M)."""
 
     def __init__(self):
-        from transformers import MarianMTModel, MarianTokenizer
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-        model_name = "Helsinki-NLP/opus-mt-en-ko"
-        print("[INFO] Loading MarianMT translation model (first run downloads ~300MB)...")
-        self._tokenizer = MarianTokenizer.from_pretrained(model_name)
-        self._model = MarianMTModel.from_pretrained(model_name)
+        model_name = "facebook/nllb-200-distilled-600M"
+        print("[INFO] Loading NLLB-200 translation model (first run downloads ~600MB)...")
+        self._tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self._model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        self._tokenizer.src_lang = "eng_Latn"
+        self._ko_token_id = self._tokenizer.convert_tokens_to_ids("kor_Hang")
         print("[INFO] Translation model loaded.")
 
     def translate(self, text: str) -> str:
         inputs = self._tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        translated = self._model.generate(**inputs, num_beams=4, max_length=512)
+        translated = self._model.generate(
+            **inputs,
+            forced_bos_token_id=self._ko_token_id,
+            num_beams=4,
+            max_length=512,
+        )
         return self._tokenizer.decode(translated[0], skip_special_tokens=True)
 
 
@@ -54,10 +61,10 @@ class Translator:
     def __init__(self, backend: str = "google"):
         """
         Args:
-            backend: "google" for Google Translate, "ai" for local MarianMT model.
+            backend: "google" for Google Translate, "ai" for local NLLB-200 model.
         """
         if backend == "ai":
-            self._backend = _MarianMTBackend()
+            self._backend = _NLLBBackend()
         else:
             self._backend = _GoogleBackend()
 
