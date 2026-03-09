@@ -150,11 +150,17 @@ class _OpenVINOBackend:
         self._processor = processor
 
     def transcribe(self, audio: np.ndarray, language: str, initial_prompt: str | None) -> str:
+        import torch
+
         generate_kwargs = {"language": language, "task": "transcribe"}
         if initial_prompt:
-            generate_kwargs["prompt_ids"] = self._processor.get_prompt_ids(
+            prompt_ids = self._processor.get_prompt_ids(
                 initial_prompt, return_tensors="pt"
             )
+            # Ensure prompt_ids is a torch tensor (some versions return numpy)
+            if not isinstance(prompt_ids, torch.Tensor):
+                prompt_ids = torch.tensor(prompt_ids, dtype=torch.long)
+            generate_kwargs["prompt_ids"] = prompt_ids
 
         result = self._pipeline(
             {"raw": audio, "sampling_rate": 16000},
