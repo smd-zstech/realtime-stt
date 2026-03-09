@@ -246,6 +246,11 @@ class Transcriber:
         """
         resolved = _resolve_device(device)
 
+        # Auto beam_size: GPU can afford higher beam, CPU needs speed
+        if beam_size <= 0:
+            beam_size = 3 if resolved == "cuda" else 1
+            print(f"[INFO] Auto beam_size={beam_size} for device={resolved}")
+
         if resolved.startswith("openvino"):
             ov_device = "GPU" if resolved == "openvino-gpu" else "NPU"
             try:

@@ -20,7 +20,7 @@ class AudioCapture:
         block_duration_ms: int = 30,
         silence_threshold: float = 0,
         silence_duration: float = 1.0,
-        min_speech_duration: float = 0.8,
+        min_speech_duration: float = 0.3,
         max_speech_duration: float = 15.0,
         calibration_seconds: float = 1.5,
     ):

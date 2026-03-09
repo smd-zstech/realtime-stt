@@ -290,8 +290,8 @@ def main():
     parser.add_argument(
         "--beam-size",
         type=int,
-        default=3,
-        help="Beam size for decoding (default: 3). "
+        default=0,
+        help="Beam size for decoding (default: 0 = auto: 1 for CPU, 3 for GPU). "
              "Higher = better accuracy for accented speech but slower.",
     )
     parser.add_argument(
