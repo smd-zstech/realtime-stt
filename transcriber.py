@@ -108,7 +108,6 @@ class _FasterWhisperBackend:
             language=language,
             initial_prompt=initial_prompt,
             beam_size=self._beam_size,
-            best_of=self._beam_size,
             temperature=0.0,
             condition_on_previous_text=True,
             vad_filter=True,
