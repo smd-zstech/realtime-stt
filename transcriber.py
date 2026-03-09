@@ -147,20 +147,12 @@ class _OpenVINOBackend:
             feature_extractor=processor.feature_extractor,
             chunk_length_s=30,
         )
-        self._processor = processor
 
     def transcribe(self, audio: np.ndarray, language: str, initial_prompt: str | None) -> str:
-        import torch
-
         generate_kwargs = {"language": language, "task": "transcribe"}
-        if initial_prompt:
-            prompt_ids = self._processor.get_prompt_ids(
-                initial_prompt, return_tensors="pt"
-            )
-            # Ensure prompt_ids is a torch tensor (some versions return numpy)
-            if not isinstance(prompt_ids, torch.Tensor):
-                prompt_ids = torch.tensor(prompt_ids, dtype=torch.long)
-            generate_kwargs["prompt_ids"] = prompt_ids
+        # Note: prompt_ids is intentionally not used here because the
+        # HuggingFace pipeline passes them as numpy arrays internally,
+        # which causes torch.cat to fail in whisper's generate().
 
         result = self._pipeline(
             {"raw": audio, "sampling_rate": 16000},
