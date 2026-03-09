@@ -30,9 +30,12 @@ class App:
         device: str = "auto",
         output_dir: str = None,
         silence_threshold: float = 0.01,
+        beam_size: int = 3,
     ):
         self.audio = AudioCapture(silence_threshold=silence_threshold)
-        self.transcriber = Transcriber(model_size=model_size, device=device)
+        self.transcriber = Transcriber(
+            model_size=model_size, device=device, beam_size=beam_size,
+        )
         self.translator = Translator()
         self.saver = FileSaver(output_dir=output_dir)
         self._running = False
@@ -107,14 +110,14 @@ class App:
         )
         self.stop_btn.pack(side="left", padx=10)
 
-        file_label = tk.Label(
+        self.file_label = tk.Label(
             btn_frame,
-            text=f"Log: {self.saver.get_file_path()}",
+            text="Log: (not started)",
             bg="#1e1e2e",
             fg="#6c7086",
             font=("Consolas", 9),
         )
-        file_label.pack(side="right", padx=10)
+        self.file_label.pack(side="right", padx=10)
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -197,6 +200,15 @@ class App:
         self._running = True
         self.audio.start()
         self.translator.start()
+        self.saver.start_session()
+        self.transcriber.reset_context()
+
+        # Clear text area for new session
+        self.text_area.configure(state=tk.NORMAL)
+        self.text_area.delete("1.0", tk.END)
+        self.text_area.configure(state=tk.DISABLED)
+
+        self.file_label.configure(text=f"Log: {self.saver.get_file_path()}")
 
         self._transcription_thread = threading.Thread(
             target=self._transcription_worker, daemon=True
@@ -213,7 +225,7 @@ class App:
         self.status_var.set("Listening...")
 
     def _on_stop(self):
-        """Stop the transcription pipeline."""
+        """Stop the transcription pipeline and save session log."""
         self._running = False
         self.audio.stop()
         self.translator.stop()
@@ -225,9 +237,15 @@ class App:
             self._display_thread.join(timeout=3.0)
             self._display_thread = None
 
+        # Finalize session: append English summary and open in Notepad
+        saved_path = self.saver.finalize_session(open_in_editor=True)
+        if saved_path:
+            self.status_var.set(f"Saved: {saved_path}")
+        else:
+            self.status_var.set("Stopped (no transcriptions)")
+
         self.start_btn.configure(state=tk.NORMAL)
         self.stop_btn.configure(state=tk.DISABLED)
-        self.status_var.set("Stopped")
 
     def _on_close(self):
         """Handle window close."""
@@ -268,6 +286,13 @@ def main():
         help="Silence threshold for voice detection (default: 0.01). "
              "Lower = more sensitive to quiet sounds.",
     )
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=3,
+        help="Beam size for decoding (default: 3). "
+             "Higher = better accuracy for accented speech but slower.",
+    )
     args = parser.parse_args()
 
     app = App(
@@ -275,6 +300,7 @@ def main():
         device=args.device,
         output_dir=args.output_dir,
         silence_threshold=args.threshold,
+        beam_size=args.beam_size,
     )
     app.run()
 

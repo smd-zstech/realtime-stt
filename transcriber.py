@@ -93,27 +93,28 @@ _WHISPER_HF_MODELS = {
 class _FasterWhisperBackend:
     """Wraps faster-whisper for CUDA and CPU inference."""
 
-    def __init__(self, model_size: str, device: str, compute_type: str):
+    def __init__(self, model_size: str, device: str, compute_type: str, beam_size: int = 1):
         from faster_whisper import WhisperModel
 
         if compute_type == "default":
             compute_type = "float16" if device == "cuda" else "int8"
         print(f"[INFO] faster-whisper device={device}, compute_type={compute_type}")
         self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        self._beam_size = beam_size
 
     def transcribe(self, audio: np.ndarray, language: str, initial_prompt: str | None) -> str:
         segments, _info = self.model.transcribe(
             audio,
             language=language,
             initial_prompt=initial_prompt,
-            beam_size=1,
-            best_of=1,
+            beam_size=self._beam_size,
+            best_of=self._beam_size,
             temperature=0.0,
             condition_on_previous_text=True,
             vad_filter=True,
             vad_parameters=dict(
                 min_silence_duration_ms=300,
-                speech_pad_ms=200,
+                speech_pad_ms=250,
             ),
         )
         return " ".join(seg.text.strip() for seg in segments).strip()
@@ -173,6 +174,14 @@ class _OpenVINOBackend:
 # Public Transcriber class
 # ---------------------------------------------------------------------------
 
+_ACCENT_PROMPT = (
+    "The following is a conversation that may include speakers with various "
+    "English accents such as Indian, British, Australian, Singaporean, "
+    "or other non-native English accents. Listen carefully for accent "
+    "variations in pronunciation."
+)
+
+
 class Transcriber:
     """Transcribes audio segments using Whisper with context-based inference."""
 
@@ -183,6 +192,8 @@ class Transcriber:
         compute_type: str = "default",
         language: str = "en",
         context_window: int = 5,
+        beam_size: int = 3,
+        accent_boost: bool = True,
     ):
         """
         Args:
@@ -191,6 +202,8 @@ class Transcriber:
             compute_type: CTranslate2 compute type (ignored for OpenVINO).
             language: Language code for transcription.
             context_window: Number of recent sentences kept as context prompt.
+            beam_size: Beam size for decoding (higher = more accurate, slower).
+            accent_boost: Add accent-aware initial prompt for better recognition.
         """
         resolved = _resolve_device(device)
 
@@ -201,18 +214,22 @@ class Transcriber:
             except Exception as e:
                 print(f"[WARN] OpenVINO backend failed completely: {e}")
                 print("[INFO] Falling back to faster-whisper on CPU.")
-                self._backend = _FasterWhisperBackend(model_size, "cpu", compute_type)
+                self._backend = _FasterWhisperBackend(model_size, "cpu", compute_type, beam_size)
         else:
-            self._backend = _FasterWhisperBackend(model_size, resolved, compute_type)
+            self._backend = _FasterWhisperBackend(model_size, resolved, compute_type, beam_size)
 
         self.language = language
+        self._accent_boost = accent_boost
         self._context: deque[str] = deque(maxlen=context_window)
 
     def _build_context_prompt(self) -> str | None:
         """Build a prompt from recent transcriptions for context inference."""
-        if not self._context:
-            return None
-        return " ".join(self._context)
+        parts = []
+        if self._accent_boost:
+            parts.append(_ACCENT_PROMPT)
+        if self._context:
+            parts.append(" ".join(self._context))
+        return " ".join(parts) if parts else None
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> str:
         """
