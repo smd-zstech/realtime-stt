@@ -183,27 +183,44 @@ class _OpenVINOBackend:
                 print(f"[WARN] OpenVINO export failed: {e}")
                 raise
 
-        processor = AutoProcessor.from_pretrained(model_id)
-
-        self._pipeline = pipeline(
-            "automatic-speech-recognition",
-            model=model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
-            chunk_length_s=30,
-        )
+        self._processor = AutoProcessor.from_pretrained(model_id)
+        self._model = model
+        self._tokenizer = self._processor.tokenizer
 
     def transcribe(self, audio: np.ndarray, language: str, initial_prompt: str | None) -> str:
-        generate_kwargs = {"language": language, "task": "transcribe"}
-        # Note: prompt_ids is intentionally not used here because the
-        # HuggingFace pipeline passes them as numpy arrays internally,
-        # which causes torch.cat to fail in whisper's generate().
+        import torch
 
-        result = self._pipeline(
-            {"raw": audio, "sampling_rate": 16000},
-            generate_kwargs=generate_kwargs,
+        # Prepare input features (mel spectrogram)
+        inputs = self._processor(
+            audio, sampling_rate=16000, return_tensors="pt",
         )
-        return result.get("text", "").strip()
+        input_features = inputs.input_features
+
+        # Build generation kwargs with quality parameters
+        gen_kwargs = {
+            "language": language,
+            "task": "transcribe",
+            "num_beams": 3,
+            "condition_on_prev_tokens": True,
+            "return_timestamps": False,
+        }
+
+        # Add context prompt if available
+        if initial_prompt:
+            prompt_ids = self._tokenizer.encode(
+                initial_prompt, add_special_tokens=False,
+            )
+            gen_kwargs["prompt_ids"] = torch.tensor(
+                prompt_ids, dtype=torch.int64,
+            )
+
+        predicted_ids = self._model.generate(
+            input_features, **gen_kwargs,
+        )
+        text = self._tokenizer.batch_decode(
+            predicted_ids, skip_special_tokens=True,
+        )
+        return text[0].strip() if text else ""
 
 
 # ---------------------------------------------------------------------------
