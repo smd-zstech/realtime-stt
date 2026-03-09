@@ -188,34 +188,21 @@ class _OpenVINOBackend:
         self._tokenizer = self._processor.tokenizer
 
     def transcribe(self, audio: np.ndarray, language: str, initial_prompt: str | None) -> str:
-        import torch
-
         # Prepare input features (mel spectrogram)
         inputs = self._processor(
             audio, sampling_rate=16000, return_tensors="pt",
         )
         input_features = inputs.input_features
 
-        # Build generation kwargs with quality parameters
-        gen_kwargs = {
-            "language": language,
-            "task": "transcribe",
-            "num_beams": 3,
-            "condition_on_prev_tokens": True,
-            "return_timestamps": False,
-        }
-
-        # Add context prompt if available
-        if initial_prompt:
-            prompt_ids = self._tokenizer.encode(
-                initial_prompt, add_special_tokens=False,
-            )
-            gen_kwargs["prompt_ids"] = torch.tensor(
-                prompt_ids, dtype=torch.int64,
-            )
-
+        # Note: prompt_ids is NOT used with OpenVINO backend because
+        # OVModelForSpeechSeq2Seq.generate() does not properly handle it —
+        # it outputs the prompt text itself instead of transcribing audio.
         predicted_ids = self._model.generate(
-            input_features, **gen_kwargs,
+            input_features,
+            language=language,
+            task="transcribe",
+            num_beams=3,
+            return_timestamps=False,
         )
         text = self._tokenizer.batch_decode(
             predicted_ids, skip_special_tokens=True,
