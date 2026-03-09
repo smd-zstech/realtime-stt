@@ -153,7 +153,7 @@ class _OpenVINOBackend:
         generate_kwargs = {"language": language, "task": "transcribe"}
         if initial_prompt:
             generate_kwargs["prompt_ids"] = self._processor.get_prompt_ids(
-                initial_prompt, return_tensors="np"
+                initial_prompt, return_tensors="pt"
             )
 
         result = self._pipeline(
