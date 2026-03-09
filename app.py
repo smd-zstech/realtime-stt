@@ -222,9 +222,9 @@ def main():
     parser.add_argument(
         "--device",
         default="auto",
-        choices=["auto", "cpu", "cuda"],
+        choices=["auto", "cpu", "cuda", "openvino-gpu", "openvino-npu"],
         help="Compute device (default: auto). "
-             "CUDA requires NVIDIA GPU. Intel GPU users should use 'auto' or 'cpu'.",
+             "cuda=NVIDIA GPU, openvino-gpu=Intel GPU, openvino-npu=Intel NPU.",
     )
     parser.add_argument(
         "--output-dir",
