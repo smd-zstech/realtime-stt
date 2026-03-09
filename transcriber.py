@@ -106,14 +106,14 @@ class _FasterWhisperBackend:
             audio,
             language=language,
             initial_prompt=initial_prompt,
-            beam_size=5,
-            best_of=5,
-            temperature=[0.0, 0.2, 0.4],
+            beam_size=1,
+            best_of=1,
+            temperature=0.0,
             condition_on_previous_text=True,
             vad_filter=True,
             vad_parameters=dict(
-                min_silence_duration_ms=500,
-                speech_pad_ms=300,
+                min_silence_duration_ms=300,
+                speech_pad_ms=200,
             ),
         )
         return " ".join(seg.text.strip() for seg in segments).strip()
@@ -135,9 +135,17 @@ class _OpenVINOBackend:
         print(f"[INFO] OpenVINO model={model_id}, device={ov_device}")
         print("[INFO] Loading model (first run may take a while for export)...")
 
-        model = OVModelForSpeechSeq2Seq.from_pretrained(
-            model_id, export=True, device=ov_device,
-        )
+        try:
+            model = OVModelForSpeechSeq2Seq.from_pretrained(
+                model_id, export=True, device=ov_device,
+            )
+        except Exception as e:
+            print(f"[WARN] OpenVINO {ov_device} failed: {e}")
+            print(f"[INFO] Retrying with OpenVINO on CPU...")
+            model = OVModelForSpeechSeq2Seq.from_pretrained(
+                model_id, export=True, device="CPU",
+            )
+
         processor = AutoProcessor.from_pretrained(model_id)
 
         self._pipeline = pipeline(
@@ -188,7 +196,12 @@ class Transcriber:
 
         if resolved.startswith("openvino"):
             ov_device = "GPU" if resolved == "openvino-gpu" else "NPU"
-            self._backend = _OpenVINOBackend(model_size, ov_device)
+            try:
+                self._backend = _OpenVINOBackend(model_size, ov_device)
+            except Exception as e:
+                print(f"[WARN] OpenVINO backend failed completely: {e}")
+                print("[INFO] Falling back to faster-whisper on CPU.")
+                self._backend = _FasterWhisperBackend(model_size, "cpu", compute_type)
         else:
             self._backend = _FasterWhisperBackend(model_size, resolved, compute_type)
 

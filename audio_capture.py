@@ -18,8 +18,8 @@ class AudioCapture:
         channels: int = 1,
         block_duration_ms: int = 30,
         silence_threshold: float = 0.01,
-        silence_duration: float = 1.0,
-        min_speech_duration: float = 0.5,
+        silence_duration: float = 0.6,
+        min_speech_duration: float = 0.3,
     ):
         self.sample_rate = sample_rate
         self.channels = channels

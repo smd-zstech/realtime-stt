@@ -10,6 +10,7 @@ Integrates all modules:
 """
 
 import argparse
+import queue
 import threading
 import tkinter as tk
 from tkinter import scrolledtext, font as tkfont
@@ -35,7 +36,9 @@ class App:
         self.translator = Translator()
         self.saver = FileSaver(output_dir=output_dir)
         self._running = False
-        self._pipeline_thread = None
+        self._transcription_thread = None
+        self._display_thread = None
+        self._display_queue = queue.Queue()
 
         # --- tkinter GUI setup ---
         self.root = tk.Tk()
@@ -125,14 +128,14 @@ class App:
         self.text_area.configure(state=tk.DISABLED)
         self.text_area.see(tk.END)
 
-    def _pipeline(self):
+    def _transcription_worker(self):
         """
-        Main processing pipeline (runs in a background thread):
-        1. Get audio segment from microphone
-        2. Transcribe with Whisper (context-aware)
-        3. Submit for Korean translation
-        4. Display and save results
+        Transcription worker (background thread):
+        Grabs audio segments, transcribes them, and submits for translation.
+        Does NOT wait for translation — keeps processing audio immediately.
         """
+        from datetime import datetime
+
         while self._running:
             segment = self.audio.get_segment(timeout=0.5)
             if segment is None:
@@ -149,16 +152,35 @@ class App:
                 )
                 continue
 
+            timestamp = datetime.now().strftime("%H:%M:%S")
             self.translator.submit(english_text)
+            # Store timestamp with the submission for the display worker
+            self._display_queue.put((timestamp, english_text))
+
+            self.root.after(
+                0, lambda: self.status_var.set("Listening...")
+            )
+
+    def _display_worker(self):
+        """
+        Display worker (background thread):
+        Picks up translation results and displays them.
+        Runs independently from transcription so it never blocks audio processing.
+        """
+        import queue as _queue
+
+        while self._running:
+            try:
+                timestamp, english_text = self._display_queue.get(timeout=0.5)
+            except _queue.Empty:
+                continue
+
             result = self.translator.get_result(timeout=10.0)
 
             if result is None:
                 korean_text = "(translation timeout)"
             else:
                 korean_text = result.korean
-
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%H:%M:%S")
 
             self.saver.save(english_text, korean_text)
 
@@ -176,10 +198,15 @@ class App:
         self.audio.start()
         self.translator.start()
 
-        self._pipeline_thread = threading.Thread(
-            target=self._pipeline, daemon=True
+        self._transcription_thread = threading.Thread(
+            target=self._transcription_worker, daemon=True
         )
-        self._pipeline_thread.start()
+        self._transcription_thread.start()
+
+        self._display_thread = threading.Thread(
+            target=self._display_worker, daemon=True
+        )
+        self._display_thread.start()
 
         self.start_btn.configure(state=tk.DISABLED)
         self.stop_btn.configure(state=tk.NORMAL)
@@ -191,9 +218,12 @@ class App:
         self.audio.stop()
         self.translator.stop()
 
-        if self._pipeline_thread is not None:
-            self._pipeline_thread.join(timeout=3.0)
-            self._pipeline_thread = None
+        if self._transcription_thread is not None:
+            self._transcription_thread.join(timeout=3.0)
+            self._transcription_thread = None
+        if self._display_thread is not None:
+            self._display_thread.join(timeout=3.0)
+            self._display_thread = None
 
         self.start_btn.configure(state=tk.NORMAL)
         self.stop_btn.configure(state=tk.DISABLED)
