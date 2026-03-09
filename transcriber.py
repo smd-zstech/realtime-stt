@@ -4,12 +4,54 @@ Speech-to-text engine with context-aware inference.
 Uses faster-whisper for transcription. Maintains a rolling context of recent
 transcriptions so that Whisper can use prior sentences as a prompt, improving
 accuracy for quiet or unclear words heard through a laptop microphone.
+
+Device selection:
+- "cuda"  : NVIDIA GPU (requires CUDA toolkit)
+- "cpu"   : CPU fallback (always available)
+- "auto"  : Tries CUDA first, then falls back to CPU
 """
 
 from collections import deque
 
 import numpy as np
 from faster_whisper import WhisperModel
+
+
+def _resolve_device(device: str) -> tuple[str, str]:
+    """Resolve device string to (device, compute_type) for faster-whisper.
+
+    Returns:
+        Tuple of (device, compute_type).
+    """
+    if device == "cuda":
+        if _cuda_available():
+            return "cuda", "float16"
+        print("[WARN] CUDA requested but not available. Falling back to CPU.")
+        return "cpu", "int8"
+
+    if device == "auto":
+        if _cuda_available():
+            print("[INFO] NVIDIA GPU detected. Using CUDA.")
+            return "cuda", "float16"
+        print("[INFO] CUDA not available. Using CPU.")
+        return "cpu", "int8"
+
+    # explicit "cpu"
+    return "cpu", "int8"
+
+
+def _cuda_available() -> bool:
+    """Check if a working NVIDIA CUDA environment is present."""
+    try:
+        import ctranslate2
+        return "cuda" in ctranslate2.get_supported_compute_types("cuda")
+    except Exception:
+        pass
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
 
 
 class Transcriber:
@@ -32,8 +74,12 @@ class Transcriber:
             language: Language code for transcription.
             context_window: Number of recent sentences kept as context prompt.
         """
+        resolved_device, resolved_compute = _resolve_device(device)
+        if compute_type == "default":
+            compute_type = resolved_compute
+        print(f"[INFO] Whisper device={resolved_device}, compute_type={compute_type}")
         self.model = WhisperModel(
-            model_size, device=device, compute_type=compute_type
+            model_size, device=resolved_device, compute_type=compute_type
         )
         self.language = language
         self._context: deque[str] = deque(maxlen=context_window)

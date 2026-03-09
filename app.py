@@ -223,7 +223,8 @@ def main():
         "--device",
         default="auto",
         choices=["auto", "cpu", "cuda"],
-        help="Compute device (default: auto).",
+        help="Compute device (default: auto). "
+             "CUDA requires NVIDIA GPU. Intel GPU users should use 'auto' or 'cpu'.",
     )
     parser.add_argument(
         "--output-dir",
