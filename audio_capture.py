@@ -20,6 +20,7 @@ class AudioCapture:
         silence_threshold: float = 0.01,
         silence_duration: float = 0.6,
         min_speech_duration: float = 0.3,
+        max_speech_duration: float = 10.0,
     ):
         self.sample_rate = sample_rate
         self.channels = channels
@@ -27,6 +28,7 @@ class AudioCapture:
         self.silence_threshold = silence_threshold
         self.silence_duration = silence_duration
         self.min_speech_duration = min_speech_duration
+        self.max_speech_duration = max_speech_duration
 
         self._audio_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._segment_queue: queue.Queue[np.ndarray] = queue.Queue()
@@ -48,6 +50,7 @@ class AudioCapture:
         blocks_per_second = self.sample_rate / self.block_size
         silence_blocks_threshold = int(self.silence_duration * blocks_per_second)
         min_speech_blocks = int(self.min_speech_duration * blocks_per_second)
+        max_speech_blocks = int(self.max_speech_duration * blocks_per_second)
 
         while self._running:
             try:
@@ -72,6 +75,14 @@ class AudioCapture:
                     speech_buffer = []
                     silence_blocks = 0
                     is_speaking = False
+
+            # Force-split if speech is too long (prevents huge segments)
+            if is_speaking and len(speech_buffer) >= max_speech_blocks:
+                segment = np.concatenate(speech_buffer, axis=0).flatten()
+                self._segment_queue.put(segment)
+                speech_buffer = []
+                silence_blocks = 0
+                # Stay in speaking mode so next blocks continue seamlessly
 
     def start(self):
         """Start capturing audio from the microphone."""

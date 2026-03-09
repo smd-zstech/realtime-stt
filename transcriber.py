@@ -64,10 +64,10 @@ def _resolve_device(device: str) -> str:
         if _cuda_available():
             print("[INFO] NVIDIA GPU detected. Using CUDA.")
             return "cuda"
-        if _openvino_available():
-            print("[INFO] OpenVINO detected. Using Intel GPU.")
-            return "openvino-gpu"
-        print("[INFO] Using CPU.")
+        # Prefer faster-whisper CPU over OpenVINO — better quality
+        # (VAD filter, prompt support, int8 quantization).
+        # Use --device openvino-gpu explicitly if GPU acceleration is desired.
+        print("[INFO] Using CPU (faster-whisper with int8).")
         return "cpu"
 
     return "cpu"

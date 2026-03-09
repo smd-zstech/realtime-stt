@@ -31,12 +31,13 @@ class App:
         output_dir: str = None,
         silence_threshold: float = 0.01,
         beam_size: int = 3,
+        translator_backend: str = "google",
     ):
         self.audio = AudioCapture(silence_threshold=silence_threshold)
         self.transcriber = Transcriber(
             model_size=model_size, device=device, beam_size=beam_size,
         )
-        self.translator = Translator()
+        self.translator = Translator(backend=translator_backend)
         self.saver = FileSaver(output_dir=output_dir)
         self._running = False
         self._transcription_thread = None
@@ -293,6 +294,13 @@ def main():
         help="Beam size for decoding (default: 3). "
              "Higher = better accuracy for accented speech but slower.",
     )
+    parser.add_argument(
+        "--translator",
+        default="google",
+        choices=["google", "ai"],
+        help="Translation backend (default: google). "
+             "ai=local MarianMT model (better quality, offline, ~300MB download).",
+    )
     args = parser.parse_args()
 
     app = App(
@@ -301,6 +309,7 @@ def main():
         output_dir=args.output_dir,
         silence_threshold=args.threshold,
         beam_size=args.beam_size,
+        translator_backend=args.translator,
     )
     app.run()
 

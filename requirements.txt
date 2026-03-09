@@ -5,3 +5,4 @@ deep-translator>=1.11.4
 openvino>=2024.0.0
 optimum[openvino]>=1.18.0
 transformers>=4.36.0
+sentencepiece>=0.1.99
