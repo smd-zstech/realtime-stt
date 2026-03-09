@@ -128,24 +128,60 @@ class _OpenVINOBackend:
     """Wraps optimum-intel OpenVINO pipeline for Intel GPU/NPU inference."""
 
     def __init__(self, model_size: str, ov_device: str):
+        import os
+        from pathlib import Path
         from optimum.intel import OVModelForSpeechSeq2Seq
         from transformers import AutoProcessor, pipeline
 
         model_id = _WHISPER_HF_MODELS.get(model_size, f"openai/whisper-{model_size}")
-        # ov_device: "GPU" or "NPU"
+        # Local cache dir for exported IR models
+        cache_dir = Path.home() / ".cache" / "realtime-stt-ov" / model_size
         print(f"[INFO] OpenVINO model={model_id}, device={ov_device}")
-        print("[INFO] Loading model (first run may take a while for export)...")
 
-        try:
-            model = OVModelForSpeechSeq2Seq.from_pretrained(
-                model_id, export=True, device=ov_device,
-            )
-        except Exception as e:
-            print(f"[WARN] OpenVINO {ov_device} failed: {e}")
-            print(f"[INFO] Retrying with OpenVINO on CPU...")
-            model = OVModelForSpeechSeq2Seq.from_pretrained(
-                model_id, export=True, device="CPU",
-            )
+        # Check if we already have a cached IR model
+        cached = cache_dir.exists() and (cache_dir / "openvino_encoder_model.xml").exists()
+
+        if cached:
+            print(f"[INFO] Loading cached IR model from {cache_dir}")
+            try:
+                model = OVModelForSpeechSeq2Seq.from_pretrained(
+                    str(cache_dir), device=ov_device,
+                )
+                print(f"[INFO] Successfully loaded on {ov_device} from cache.")
+            except Exception as e:
+                print(f"[WARN] Failed to load cache on {ov_device}: {e}")
+                print("[INFO] Retrying cached model on CPU...")
+                model = OVModelForSpeechSeq2Seq.from_pretrained(
+                    str(cache_dir), device="CPU",
+                )
+        else:
+            print("[INFO] First run — exporting model (this may take a while)...")
+            # Export on CPU first (more reliable), then save to cache
+            try:
+                model = OVModelForSpeechSeq2Seq.from_pretrained(
+                    model_id, export=True, device="CPU",
+                )
+                # Save exported IR to cache for future GPU loading
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                model.save_pretrained(str(cache_dir))
+                print(f"[INFO] Cached IR model to {cache_dir}")
+
+                # Now reload on target device if not CPU
+                if ov_device != "CPU":
+                    try:
+                        model = OVModelForSpeechSeq2Seq.from_pretrained(
+                            str(cache_dir), device=ov_device,
+                        )
+                        print(f"[INFO] Reloaded on {ov_device} successfully.")
+                    except Exception as e:
+                        print(f"[WARN] {ov_device} reload failed: {e}")
+                        print("[INFO] Continuing on CPU.")
+                        model = OVModelForSpeechSeq2Seq.from_pretrained(
+                            str(cache_dir), device="CPU",
+                        )
+            except Exception as e:
+                print(f"[WARN] OpenVINO export failed: {e}")
+                raise
 
         processor = AutoProcessor.from_pretrained(model_id)
 
