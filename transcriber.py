@@ -227,28 +227,71 @@ _ACCENT_PROMPT = (
     "variations in pronunciation."
 )
 
+# Domain-specific vocabulary hints for Whisper initial_prompt.
+# Whisper uses the prompt as context — mentioning these terms biases the
+# decoder toward recognizing them correctly instead of similar-sounding words.
+_DOMAIN_VOCAB = (
+    # Zscaler products and features
+    "Zscaler, ZIA, ZPA, ZDX, ZCC, Zscaler Client Connector, "
+    "Zscaler Internet Access, Zscaler Private Access, "
+    "Zscaler Digital Experience, Zscaler Zero Trust Exchange, "
+    "ZTNA, Zero Trust Network Access, "
+    "LA, Limited Availability, GA, General Availability, "
+    "App Connector, Service Edge, Cloud Connector, Branch Connector, "
+    "CASB, DLP, SWG, Secure Web Gateway, "
+    "Zscaler Deception, ZPA Private Service Edge, "
+    "NSS, Nanolog Streaming Service, "
+    # Networking and security
+    "SSL inspection, TLS, HTTPS, SD-WAN, MPLS, BGP, OSPF, "
+    "SASE, SSE, SaaS, IaaS, PaaS, "
+    "firewall, proxy, VPN, IPsec, GRE tunnel, PAC file, "
+    "CIDR, subnet, VLAN, DNS, DHCP, NAT, "
+    "IdP, SAML, SCIM, OAuth, MFA, SSO, Active Directory, Okta, Azure AD, "
+    "SIEM, SOAR, SOC, EDR, XDR, MDR, NDR, "
+    "CVE, IOC, indicators of compromise, threat intelligence, "
+    "malware, ransomware, phishing, lateral movement, "
+    "microsegmentation, least privilege, "
+    # Cloud and infrastructure
+    "AWS, Azure, GCP, Kubernetes, Docker, "
+    "EC2, S3, VPC, Lambda, "
+    "IoT, OT, SCADA, ICS, "
+    # Common IT/business terms
+    "SLA, RFP, POC, POV, PoC, PoV, "
+    "RSC, TSC, TAS, TAM, SA, PM, SE, "
+    "SNAP, SNAPs, Artex, "
+    "C-level, CIO, CISO, CTO, CSO"
+)
 
-def _is_repetitive(text: str, max_ratio: float = 0.5) -> bool:
+
+def _is_repetitive(text: str, max_ratio: float = 0.4) -> bool:
     """Detect Whisper hallucination where the same phrase is repeated many times.
 
-    Splits the text into words and checks if any short phrase (1-6 words)
+    Splits the text into words and checks if any short phrase (1-8 words)
     is repeated so often that it accounts for more than *max_ratio* of the
-    total words.  Also catches exact-duplicate sentences.
+    total words.
     """
     words = text.split()
     if len(words) < 6:
         return False
 
-    # Check for repeated n-grams (n = 2..6)
-    for n in range(2, min(7, len(words) // 2 + 1)):
+    total = len(words)
+
+    # Check single-word dominance (e.g. "the the the the the the")
+    from collections import Counter
+    word_counts = Counter(words)
+    most_common_word, most_common_count = word_counts.most_common(1)[0]
+    if most_common_count >= 6 and most_common_count / total >= 0.6:
+        return True
+
+    # Check for repeated n-grams (n = 2..8)
+    for n in range(2, min(9, total // 2 + 1)):
         ngram_counts: dict[str, int] = {}
-        for i in range(len(words) - n + 1):
+        for i in range(total - n + 1):
             gram = " ".join(words[i:i + n])
             ngram_counts[gram] = ngram_counts.get(gram, 0) + 1
 
         for gram, count in ngram_counts.items():
-            # If an n-gram appears many times and covers most of the text
-            if count >= 4 and (count * n) / len(words) >= max_ratio:
+            if count >= 3 and (count * n) / total >= max_ratio:
                 return True
 
     return False
@@ -304,6 +347,7 @@ class Transcriber:
         parts = []
         if self._accent_boost:
             parts.append(_ACCENT_PROMPT)
+        parts.append(_DOMAIN_VOCAB)
         if self._context:
             parts.append(" ".join(self._context))
         return " ".join(parts) if parts else None
