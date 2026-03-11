@@ -233,23 +233,51 @@ _ACCENT_PROMPT = (
 # decoder toward recognizing them correctly instead of similar-sounding words.
 _DOMAIN_VOCAB = (
     # Zscaler products and platform
-    "Zscaler, ZIA, ZPA, ZDX, ZCC, ZTNA, ZEN, "
+    "Zscaler, ZIA, ZPA, ZDX, ZCC, ZTNA, ZEN, ZTE, ZWS, "
     "Zscaler Client Connector, Zscaler Internet Access, "
     "Zscaler Private Access, Zscaler Digital Experience, "
     "Zscaler Zero Trust Exchange, Zscaler One, Zscaler Risk360, "
     "Zscaler Deception, Zscaler Posture Control, Zscaler Data Protection, "
     "Zscaler Workload Segmentation, Zscaler Cloud Protection, "
-    "Zscaler Browser Isolation, "
-    # Zscaler components
-    "App Connector, Service Edge, Private Service Edge, "
+    "Zscaler Browser Isolation, Zscaler Cloud Browser Isolation, "
+    "Zscaler SaaS Security, Zscaler AI Protect, ZscalerGov, "
+    "Zscaler Device Segmentation, Zero Trust SD-WAN, "
+    # Zscaler components & architecture
+    "App Connector, App Connector Group, Connector Group, "
+    "Service Edge, Public Service Edge, Private Service Edge, "
     "Cloud Connector, Branch Connector, "
-    "Nanolog, Nanolog Streaming Service, NSS, ECRS, "
-    "Z-Tunnel, Z-Tunnel 1.0, Z-Tunnel 2.0, "
+    "Nanolog, Nanolog Streaming Service, NSS, Cloud NSS, NSS VM, "
+    "Log Streaming Service, LSS, ECRS, Central Authority, "
+    "Z-Tunnel, Z-Tunnel 1.0, Z-Tunnel 2.0, Microtunnel, "
     "App Segment, Segment Group, Server Group, "
-    "CloudPath, "
-    # Zscaler release terms
+    "Access Policy, Forwarding Profile, App Profile, "
+    "CloudPath, URL category, Cloud App Control, Bandwidth Control, "
+    "Trusted Network, Location, Sub-Location, "
+    # Zscaler data protection & threat features
+    "SSMA, Single Scan Multi-Action, "
+    "EDM, Exact Data Match, IDM, Indexed Document Matching, "
+    "CDR, Content Disarm and Reconstruction, OCR, "
+    "Cloud Sandbox, Cloud Firewall, Cloud IPS, DNS Security, "
+    "Advanced Threat Protection, ATP, "
+    "Privileged Remote Access, PRA, Application Discovery, "
+    "Surrogate, Device Posture, "
+    # Zscaler AI features
+    "AI Protect, AI Asset Management, Smart Isolation, "
+    # Zscaler risk & posture management
+    "CSPM, DSPM, SSPM, UVM, CNAPP, CWPP, CIEM, "
+    "EASM, External Attack Surface Management, "
+    "ITDR, Identity Threat Detection and Response, "
+    "Breach Predictor, Risk Score, "
+    # Zscaler partner program
+    "Zenith, Alpine, Basecamp, Z-Flex, ZCCP, "
+    "MSP, MSSP, VAR, ARR, "
+    # Zscaler research & knowledge
+    "ThreatLabz, Zpedia, Security Preview, Page Risk Index, "
+    # Zscaler release & licensing terms
+    "PSE, CBI, IaC, "
     "LA, Limited Availability, GA, General Availability, "
     "EOL, End of Life, EOS, End of Support, "
+    "Business, Transformation, Unlimited, "
     # Security concepts
     "SASE, Secure Access Service Edge, SSE, Security Service Edge, "
     "CASB, Cloud Access Security Broker, DLP, Data Loss Prevention, "
@@ -262,11 +290,11 @@ _DOMAIN_VOCAB = (
     "attack surface, security posture, Zero Trust, "
     "malware, ransomware, phishing, lateral movement, "
     "microsegmentation, least privilege, "
-    "Advanced Threat Protection, "
+    "C2, command and control, "
     # Networking
     "SD-WAN, MPLS, BGP, OSPF, IPsec, GRE tunnel, PAC file, "
     "TCP, UDP, HTTP, HTTPS, SSL, TLS, DNS, DHCP, NAT, "
-    "CIDR, subnet, VLAN, QoS, SNMP, "
+    "CIDR, subnet, VLAN, QoS, SNMP, SDN, NFV, "
     "Gbps, Mbps, Kbps, bandwidth, throughput, latency, jitter, packet loss, "
     "1 Gbps, 10 Gbps, 100 Gbps, "
     "firewall, proxy, VPN, "
@@ -276,16 +304,17 @@ _DOMAIN_VOCAB = (
     "LDAP, RADIUS, RBAC, IAM, PAM, "
     "multi-factor authentication, single sign-on, "
     # Cloud and infrastructure
-    "SaaS, IaaS, PaaS, "
+    "SaaS, IaaS, PaaS, IaC, "
     "AWS, Azure, GCP, Kubernetes, K8s, Docker, "
     "EC2, S3, VPC, Lambda, Terraform, "
     "on-premises, hybrid cloud, multi-cloud, public cloud, private cloud, "
     "DevOps, DevSecOps, CI/CD, API, REST API, SDK, "
     "IoT, OT, SCADA, ICS, PLC, "
     # Business / organizational
-    "SLA, RFP, RFI, SOW, ROI, TCO, OPEX, CAPEX, KPI, "
+    "SLA, RFP, RFI, SOW, ROI, TCO, OPEX, CAPEX, KPI, ARR, "
     "POC, POV, PoC, PoV, "
     "RSC, TSC, TAS, TAM, SA, PM, SE, "
+    "MSP, MSSP, VAR, "
     "SNAP, SNAPs, Artex, "
     "C-level, CIO, CISO, CTO, CSO, VP, SVP"
 )
@@ -306,52 +335,121 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "zscalar": "Zscaler",
     "zee scaler": "Zscaler",
     "z scaler": "Zscaler",
+    "zed scaler": "Zscaler",
     "zia": "ZIA",
     "z.i.a.": "ZIA",
     "zpa": "ZPA",
     "z.p.a.": "ZPA",
+    "zepa": "ZPA",
     "zdx": "ZDX",
     "z.d.x.": "ZDX",
+    "zdex": "ZDX",
     "zcc": "ZCC",
     "z.c.c.": "ZCC",
     "ztna": "ZTNA",
     "z.t.n.a.": "ZTNA",
+    "zws": "ZWS",
+    "z.w.s.": "ZWS",
+    "zte": "ZTE",
+    "cbi": "CBI",
     # Zscaler components & connectors
     "app connector": "App Connector",
+    "app connector group": "App Connector Group",
+    "connector group": "Connector Group",
     "service edge": "Service Edge",
+    "public service edge": "Public Service Edge",
+    "private service edge": "Private Service Edge",
     "cloud connector": "Cloud Connector",
     "branch connector": "Branch Connector",
     "client connector": "Client Connector",
-    "private service edge": "Private Service Edge",
     "nanolog": "Nanolog",
+    "nano log": "Nanolog",
     "zen": "ZEN",
     "zen node": "ZEN node",
     "z tunnel": "Z-Tunnel",
     "z-tunnel": "Z-Tunnel",
-    # Zscaler features
+    "microtunnel": "Microtunnel",
+    "micro tunnel": "Microtunnel",
+    # Zscaler features & capabilities
     "browser isolation": "Browser Isolation",
+    "cloud browser isolation": "Cloud Browser Isolation",
     "cloud firewall": "Cloud Firewall",
+    "cloud ips": "Cloud IPS",
+    "cloud sandbox": "Cloud Sandbox",
     "sandbox": "Sandbox",
     "data protection": "Data Protection",
     "workload segmentation": "Workload Segmentation",
     "workload communications": "Workload Communications",
+    "device segmentation": "Device Segmentation",
     "posture control": "Posture Control",
     "risk score": "Risk Score",
+    "risk 360": "Risk360",
+    "risk360": "Risk360",
+    "breach predictor": "Breach Predictor",
     "cloud security posture management": "Cloud Security Posture Management",
     "cspm": "CSPM",
+    "dspm": "DSPM",
+    "sspm": "SSPM",
+    "uvm": "UVM",
+    "cnapp": "CNAPP",
+    "cwpp": "CWPP",
+    "ciem": "CIEM",
     "digital experience monitoring": "Digital Experience Monitoring",
-    "user experience": "User Experience",
     "cloud path": "CloudPath",
     "cloudpath": "CloudPath",
     "app segmentation": "App Segmentation",
     "app segment": "App Segment",
     "server group": "Server Group",
     "segment group": "Segment Group",
+    "access policy": "Access Policy",
+    "forwarding profile": "Forwarding Profile",
+    "app profile": "App Profile",
+    "url category": "URL category",
+    "cloud app control": "Cloud App Control",
+    "bandwidth control": "Bandwidth Control",
+    "dns security": "DNS Security",
     "idp": "IdP",
     "ecrs": "ECRS",
+    "surrogate": "Surrogate",
+    # Zscaler data protection features
+    "edm": "EDM",
+    "idm": "IDM",
+    "ocr": "OCR",
+    "cdr": "CDR",
+    "ssma": "SSMA",
+    "sigma": "SSMA",
+    # Zscaler AI features
+    "ai protect": "AI Protect",
+    "ai asset management": "AI Asset Management",
+    "smart isolation": "Smart Isolation",
+    # Zscaler risk & posture
+    "easm": "EASM",
+    "itdr": "ITDR",
+    # Zscaler partner program
+    "zenith": "Zenith",
+    "alpine": "Alpine",
+    "basecamp": "Basecamp",
+    "z-flex": "Z-Flex",
+    "z flex": "Z-Flex",
+    "zee flex": "Z-Flex",
+    "zed flex": "Z-Flex",
+    "zccp": "ZCCP",
+    "z.c.c.p.": "ZCCP",
+    # Zscaler research & knowledge
+    "threat labs": "ThreatLabz",
+    "threatlabz": "ThreatLabz",
+    "threat labz": "ThreatLabz",
+    "zpedia": "Zpedia",
+    "z pedia": "Zpedia",
+    "zscalergov": "ZscalerGov",
     # Zscaler deployment / release
     "zscaler one": "Zscaler One",
     "z1": "Z1",
+    "pse": "PSE",
+    "lss": "LSS",
+    "cloud nss": "Cloud NSS",
+    "nss vm": "NSS VM",
+    "pop": "PoP",
 
     # === Security Acronyms & Terms ===
     # SASE / SSE
@@ -364,9 +462,11 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "casb": "CASB",
     "kazb": "CASB",
     "cas b": "CASB",
-    "castle": "CASB",
+    "cazb": "CASB",
     "dlp": "DLP",
     "swg": "SWG",
+    "atp": "ATP",
+    "ips": "IPS",
     # SOC / SIEM / SOAR
     "ciso": "CISO",
     "see so": "CISO",
@@ -391,6 +491,9 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "mitre": "MITRE",
     "mitre attack": "MITRE ATT&CK",
     "mitre att&ck": "MITRE ATT&CK",
+    "c2": "C2",
+    "c&c": "C&C",
+    "command and control": "command and control",
 
     # === Networking ===
     # Protocols & standards
@@ -416,6 +519,8 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "cidr": "CIDR",
     "qos": "QoS",
     "snmp": "SNMP",
+    "sdn": "SDN",
+    "nfv": "NFV",
     "pac file": "PAC file",
     "pack file": "PAC file",
     # Units — Whisper often spells out abbreviations
@@ -434,6 +539,8 @@ _EXACT_CORRECTIONS: dict[str, str] = {
 
     # === Identity & Access ===
     "saml": "SAML",
+    "samuel": "SAML",
+    "samel": "SAML",
     "scim": "SCIM",
     "skim": "SCIM",
     "oauth": "OAuth",
@@ -448,6 +555,7 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "pam": "PAM",
     "iam": "IAM",
     "entra id": "Entra ID",
+    "pra": "PRA",
 
     # === Cloud & Infrastructure ===
     "saas": "SaaS",
@@ -470,6 +578,7 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "api": "API",
     "rest api": "REST API",
     "sdk": "SDK",
+    "iac": "IaC",
     # IoT / OT
     "iot": "IoT",
     "scada": "SCADA",
@@ -489,6 +598,7 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "opex": "OPEX",
     "capex": "CAPEX",
     "kpi": "KPI",
+    "arr": "ARR",
     "rsc": "RSC",
     "tsc": "TSC",
     "tas": "TAS",
@@ -496,6 +606,9 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "nss": "NSS",
     "se": "SE",
     "sa": "SA",
+    "msp": "MSP",
+    "mssp": "MSSP",
+    "var": "VAR",
     "c-level": "C-level",
     "c level": "C-level",
     "sea level": "C-level",
@@ -510,6 +623,10 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "ga": "GA",
     "eol": "EOL",
     "eos": "EOS",
+    # Zscaler licensing
+    "business": "Business",
+    "transformation": "Transformation",
+    "unlimited": "Unlimited",
 }
 
 # Tier 2: Regex patterns for multi-word or contextual corrections.
@@ -528,6 +645,14 @@ _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+posture\s+control\b", re.I), "Zscaler Posture Control"),
     (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+risk\s*360\b", re.I), "Zscaler Risk360"),
 
+    # === Zscaler additional product names ===
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+cloud\s+browser\s+isolation\b", re.I), "Zscaler Cloud Browser Isolation"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+saas\s+security\b", re.I), "Zscaler SaaS Security"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+device\s+segmentation\b", re.I), "Zscaler Device Segmentation"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+ai\s+protect\b", re.I), "Zscaler AI Protect"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+ai\s+security\b", re.I), "Zscaler AI Security"),
+    (re.compile(r"\bzero\s+trust\s+sd[- ]?wan\b", re.I), "Zero Trust SD-WAN"),
+
     # === Zero Trust phrases ===
     (re.compile(r"\bzero\s+trust\s+network\s+access\b", re.I), "Zero Trust Network Access"),
     (re.compile(r"\bzero\s+trust\s+exchange\b", re.I), "Zero Trust Exchange"),
@@ -545,16 +670,27 @@ _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bcloud\s+access\s+security\s+broker\b", re.I), "Cloud Access Security Broker"),
     (re.compile(r"\bdata\s+loss\s+prevention\b", re.I), "Data Loss Prevention"),
     (re.compile(r"\bdata\s+leakage\s+prevention\b", re.I), "Data Leakage Prevention"),
+    (re.compile(r"\bdata\s+security\s+posture\s+management\b", re.I), "Data Security Posture Management"),
+    (re.compile(r"\bsaas\s+security\s+posture\s+management\b", re.I), "SaaS Security Posture Management"),
+    (re.compile(r"\bcloud\s+security\s+posture\s+management\b", re.I), "Cloud Security Posture Management"),
+    (re.compile(r"\bexternal\s+attack\s+surface\s+management\b", re.I), "External Attack Surface Management"),
+    (re.compile(r"\basset\s+exposure\s+management\b", re.I), "Asset Exposure Management"),
+    (re.compile(r"\bidentity\s+threat\s+detection\s+and\s+response\b", re.I), "Identity Threat Detection and Response"),
     (re.compile(r"\bindicators?\s+of\s+compromise\b", re.I), "indicators of compromise"),
     (re.compile(r"\badvanced\s+threat\s+protection\b", re.I), "Advanced Threat Protection"),
     (re.compile(r"\badvanced\s+persistent\s+threat\b", re.I), "Advanced Persistent Threat"),
     (re.compile(r"\bthreat\s+intelligen\w+\b", re.I), "threat intelligence"),
     (re.compile(r"\blateral\s+movement\b", re.I), "lateral movement"),
     (re.compile(r"\bleast\s+privilege\b", re.I), "least privilege"),
-    (re.compile(r"\battack\s+surface\b", re.I), "attack surface"),
-    (re.compile(r"\bsecurity\s+posture\b", re.I), "security posture"),
     (re.compile(r"\bsecurity\s+service\s+edge\b", re.I), "Security Service Edge"),
     (re.compile(r"\bsecure\s+access\s+service\s+edge\b", re.I), "Secure Access Service Edge"),
+    (re.compile(r"\bcontent\s+disarm\s+and\s+reconstruction\b", re.I), "Content Disarm and Reconstruction"),
+    (re.compile(r"\bexact\s+data\s+match\b", re.I), "Exact Data Match"),
+    (re.compile(r"\bindexed\s+document\s+matching\b", re.I), "Indexed Document Matching"),
+    (re.compile(r"\bsingle\s+scan\s+multi[- ]?action\b", re.I), "Single Scan Multi-Action"),
+    (re.compile(r"\bprivileged\s+remote\s+access\b", re.I), "Privileged Remote Access"),
+    (re.compile(r"\bnanolog\s+streaming\s+service\b", re.I), "Nanolog Streaming Service"),
+    (re.compile(r"\blog\s+streaming\s+service\b", re.I), "Log Streaming Service"),
 
     # === SSL / TLS / inspection ===
     (re.compile(r"\bssl\s+inspection\b", re.I), "SSL inspection"),
@@ -565,10 +701,12 @@ _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     # === Identity ===
     (re.compile(r"\bactive\s+directory\b", re.I), "Active Directory"),
     (re.compile(r"\bazure\s+a\.?d\.?\b", re.I), "Azure AD"),
+    (re.compile(r"\bmicrosoft\s+entra\b", re.I), "Microsoft Entra"),
     (re.compile(r"\bentra\s+id\b", re.I), "Entra ID"),
     (re.compile(r"\bidentity\s+provider\b", re.I), "Identity Provider"),
     (re.compile(r"\bmulti[- ]?factor\s+auth\w*\b", re.I), "multi-factor authentication"),
     (re.compile(r"\bsingle\s+sign[- ]?on\b", re.I), "single sign-on"),
+    (re.compile(r"\bdevice\s+posture\b", re.I), "device posture"),
 
     # === Networking units — "10 gig" → "10 Gbps", "one gig" → "1 Gbps" ===
     (re.compile(r"\b(\d+)\s*gig(?:s|abit)?(?:\s+per\s+second)?\b", re.I),
