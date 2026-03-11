@@ -8,6 +8,7 @@ Supports two backends:
 Provides both synchronous translate() and async submit()/get_result() APIs.
 """
 
+import re
 import threading
 import time
 from typing import NamedTuple
@@ -79,6 +80,38 @@ class _NLLBBackend:
         return self._tokenizer.decode(translated[0], skip_special_tokens=True)
 
 
+# Patterns that indicate a broken/degenerate translation output.
+_REPEATED_DOTS = re.compile(r"\.{5,}")  # 5+ consecutive dots
+_REPEATED_CHAR = re.compile(r"(.)\1{9,}")  # same char 10+ times in a row
+
+
+def _is_bad_translation(text: str) -> bool:
+    """Detect degenerate translation output (dots, repeated chars/words)."""
+    if not text or text == "(translation failed)":
+        return False
+
+    # Check for "....................................." patterns
+    if _REPEATED_DOTS.search(text):
+        return True
+
+    # Check for single character repeated excessively (e.g. "ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ")
+    if _REPEATED_CHAR.search(text):
+        return True
+
+    # Check for word-level repetition in translation
+    # e.g. "번역 번역 번역 번역 번역 번역"
+    words = text.split()
+    if len(words) >= 4:
+        # If any single word makes up 70%+ of all words, it's degenerate
+        from collections import Counter
+        counts = Counter(words)
+        most_common_word, most_common_count = counts.most_common(1)[0]
+        if most_common_count / len(words) >= 0.7 and most_common_count >= 4:
+            return True
+
+    return False
+
+
 class Translator:
     """Translates English text to Korean. Thread-safe."""
 
@@ -96,7 +129,16 @@ class Translator:
         """
         with self._lock:
             try:
-                return self._backend.translate(english_text)
+                result = self._backend.translate(english_text)
+                if _is_bad_translation(result):
+                    print(f"[WARN] Bad translation detected, retrying: "
+                          f"{result[:60]}...")
+                    # Retry once — transient API glitch
+                    result = self._backend.translate(english_text)
+                    if _is_bad_translation(result):
+                        print(f"[WARN] Bad translation persists: {result[:60]}...")
+                        return "(번역 실패 - 재시도 필요)"
+                return result
             except Exception as e:
                 print(f"[ERROR] Translation failed: {e}")
                 return "(translation failed)"

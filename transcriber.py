@@ -935,6 +935,55 @@ def _correct_domain_terms(text: str) -> str:
     return text
 
 
+# Known Whisper hallucination phrases.
+# Whisper often outputs these when there is silence, background noise, or
+# very short unclear audio. Case-insensitive, stripped of punctuation.
+_HALLUCINATION_PHRASES: set[str] = {
+    "thank you",
+    "thanks",
+    "thanks for watching",
+    "thanks for listening",
+    "thank you for watching",
+    "thank you for listening",
+    "thank you very much",
+    "please subscribe",
+    "subscribe",
+    "like and subscribe",
+    "see you next time",
+    "bye",
+    "bye bye",
+    "goodbye",
+    "you",
+    "okay",
+    "ok",
+    "so",
+    "um",
+    "uh",
+    "hmm",
+    "ah",
+    "oh",
+    "yeah",
+    "yes",
+    "no",
+    "right",
+    "well",
+    "the end",
+    "music",
+    "applause",
+    "laughter",
+    "silence",
+}
+
+# Pre-compiled pattern to strip punctuation for hallucination check
+_PUNCT_STRIP = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+def _is_hallucination(text: str) -> bool:
+    """Check if the text is a known Whisper hallucination phrase."""
+    cleaned = _PUNCT_STRIP.sub("", text).strip().lower()
+    return cleaned in _HALLUCINATION_PHRASES
+
+
 def _is_repetitive(text: str, max_ratio: float = 0.4) -> bool:
     """Detect Whisper hallucination where the same phrase is repeated many times.
 
@@ -1037,11 +1086,15 @@ class Transcriber:
         context_prompt = self._build_context_prompt()
         full_text = self._backend.transcribe(audio, self.language, context_prompt)
 
-        # Filter out Whisper hallucinations (repeated phrases)
-        if full_text and _is_repetitive(full_text):
-            print(f"[WARN] Filtered repetitive hallucination: {full_text[:80]}...")
-            self._context.clear()  # Reset context to break the loop
-            return ""
+        # Filter out Whisper hallucinations
+        if full_text:
+            if _is_hallucination(full_text):
+                print(f"[WARN] Filtered hallucination: \"{full_text}\"")
+                return ""
+            if _is_repetitive(full_text):
+                print(f"[WARN] Filtered repetitive hallucination: {full_text[:80]}...")
+                self._context.clear()
+                return ""
 
         # Post-process: correct domain-specific terms
         if full_text:
