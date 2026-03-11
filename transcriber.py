@@ -228,6 +228,32 @@ _ACCENT_PROMPT = (
 )
 
 
+def _is_repetitive(text: str, max_ratio: float = 0.5) -> bool:
+    """Detect Whisper hallucination where the same phrase is repeated many times.
+
+    Splits the text into words and checks if any short phrase (1-6 words)
+    is repeated so often that it accounts for more than *max_ratio* of the
+    total words.  Also catches exact-duplicate sentences.
+    """
+    words = text.split()
+    if len(words) < 6:
+        return False
+
+    # Check for repeated n-grams (n = 2..6)
+    for n in range(2, min(7, len(words) // 2 + 1)):
+        ngram_counts: dict[str, int] = {}
+        for i in range(len(words) - n + 1):
+            gram = " ".join(words[i:i + n])
+            ngram_counts[gram] = ngram_counts.get(gram, 0) + 1
+
+        for gram, count in ngram_counts.items():
+            # If an n-gram appears many times and covers most of the text
+            if count >= 4 and (count * n) / len(words) >= max_ratio:
+                return True
+
+    return False
+
+
 class Transcriber:
     """Transcribes audio segments using Whisper with context-based inference."""
 
@@ -295,6 +321,12 @@ class Transcriber:
         """
         context_prompt = self._build_context_prompt()
         full_text = self._backend.transcribe(audio, self.language, context_prompt)
+
+        # Filter out Whisper hallucinations (repeated phrases)
+        if full_text and _is_repetitive(full_text):
+            print(f"[WARN] Filtered repetitive hallucination: {full_text[:80]}...")
+            self._context.clear()  # Reset context to break the loop
+            return ""
 
         if full_text:
             self._context.append(full_text)

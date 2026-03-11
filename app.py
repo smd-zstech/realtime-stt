@@ -17,7 +17,7 @@ from tkinter import scrolledtext, font as tkfont
 
 from audio_capture import AudioCapture
 from transcriber import Transcriber
-from translator import Translator, TranslationResult
+from translator import Translator
 from file_saver import FileSaver
 
 
@@ -122,21 +122,43 @@ class App:
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    def _append_text(self, timestamp: str, english: str, korean: str):
-        """Append a transcription result to the text area (thread-safe)."""
+    def _append_english(self, timestamp: str, english: str) -> str:
+        """Append EN text immediately and return a marker for the KO line."""
         self.text_area.configure(state=tk.NORMAL)
         self.text_area.insert(tk.END, f"[{timestamp}]\n", "timestamp")
         self.text_area.insert(tk.END, f"EN: {english}\n", "english")
-        self.text_area.insert(tk.END, f"KO: {korean}\n", "korean")
+        # Mark the KO line position with left gravity so it stays put
+        ko_mark = f"ko_{id(english)}_{timestamp}"
+        self.text_area.mark_set(ko_mark, tk.END)
+        self.text_area.mark_gravity(ko_mark, "left")
+        self.text_area.insert(tk.END, "KO: (translating...)\n", "korean")
         self.text_area.insert(tk.END, "-" * 60 + "\n", "separator")
+        self.text_area.configure(state=tk.DISABLED)
+        self.text_area.see(tk.END)
+        return ko_mark
+
+    def _update_korean(self, ko_mark: str, korean: str):
+        """Replace the KO placeholder line with the actual translation."""
+        self.text_area.configure(state=tk.NORMAL)
+        try:
+            # Find the placeholder line starting from the mark
+            mark_pos = self.text_area.index(ko_mark)
+            # The KO line starts at the mark position (line start)
+            line_num = int(mark_pos.split(".")[0])
+            line_start = f"{line_num}.0"
+            line_end = f"{line_num}.end"
+            self.text_area.delete(line_start, line_end)
+            self.text_area.insert(line_start, f"KO: {korean}", "korean")
+        except tk.TclError:
+            pass  # Mark no longer exists — text was cleared
         self.text_area.configure(state=tk.DISABLED)
         self.text_area.see(tk.END)
 
     def _transcription_worker(self):
         """
         Transcription worker (background thread):
-        Grabs audio segments, transcribes them, and submits for translation.
-        Does NOT wait for translation — keeps processing audio immediately.
+        Grabs audio segments, transcribes them, shows EN immediately,
+        then submits for translation in the display worker.
         """
         from datetime import datetime
 
@@ -157,50 +179,59 @@ class App:
                 continue
 
             timestamp = datetime.now().strftime("%H:%M:%S")
-            self.translator.submit(english_text)
-            # Store timestamp with the submission for the display worker
-            self._display_queue.put((timestamp, english_text))
 
-            self.root.after(
-                0, lambda: self.status_var.set("Listening...")
+            # Show English immediately on the GUI
+            result_holder = {"ko_mark": None}
+            done_event = threading.Event()
+
+            def show_english(ts=timestamp, en=english_text):
+                result_holder["ko_mark"] = self._append_english(ts, en)
+                self.status_var.set("Listening...")
+                done_event.set()
+
+            self.root.after(0, show_english)
+            done_event.wait(timeout=2.0)
+
+            # Queue for translation (display worker will translate & update KO)
+            self._display_queue.put(
+                (timestamp, english_text, result_holder.get("ko_mark"))
             )
 
     def _display_worker(self):
         """
         Display worker (background thread):
-        Picks up translation results and displays them.
-        Runs independently from transcription so it never blocks audio processing.
+        Translates text and updates the Korean line in the GUI.
+        Each translation is paired with its specific GUI marker — no desync possible.
         """
         import queue as _queue
 
         while self._running:
             try:
-                timestamp, english_text = self._display_queue.get(timeout=0.5)
+                timestamp, english_text, ko_mark = self._display_queue.get(
+                    timeout=0.5
+                )
             except _queue.Empty:
                 continue
 
-            result = self.translator.get_result(timeout=30.0)
+            # Translate synchronously — this thread is dedicated to translation
+            korean_text = self.translator.translate(english_text)
 
-            if result is None:
-                korean_text = "(translation timeout)"
-            else:
-                korean_text = result.korean
+            # Update the specific KO line in the GUI
+            if ko_mark:
+                self.root.after(
+                    0,
+                    lambda m=ko_mark, ko=korean_text: self._update_korean(
+                        m, ko
+                    ),
+                )
 
+            # Update saved file with Korean translation
             self.saver.save(english_text, korean_text)
-
-            self.root.after(
-                0,
-                lambda ts=timestamp, en=english_text, ko=korean_text: (
-                    self._append_text(ts, en, ko),
-                    self.status_var.set("Listening..."),
-                ),
-            )
 
     def _on_start(self):
         """Start the real-time transcription pipeline."""
         self._running = True
         self.audio.start()
-        self.translator.start()
         self.saver.start_session()
         self.transcriber.reset_context()
 
@@ -229,7 +260,6 @@ class App:
         """Stop the transcription pipeline and save session log."""
         self._running = False
         self.audio.stop()
-        self.translator.stop()
 
         if self._transcription_thread is not None:
             self._transcription_thread.join(timeout=3.0)

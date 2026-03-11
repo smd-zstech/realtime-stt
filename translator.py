@@ -5,11 +5,11 @@ Supports two backends:
 - "google": Google Translate via deep-translator (fast, online)
 - "ai": Facebook NLLB-200 model (better quality, offline, ~600MB)
 
-Runs translations in a background thread to avoid blocking the main loop.
+Provides both synchronous translate() and async submit()/get_result() APIs.
 """
 
 import threading
-import queue
+import time
 from typing import NamedTuple
 
 
@@ -27,8 +27,6 @@ class _GoogleBackend:
         self._last_request_time = 0.0
 
     def translate(self, text: str) -> str:
-        import time
-
         max_retries = 3
         for attempt in range(max_retries):
             # Rate limit: ensure at least 0.5s between requests
@@ -82,58 +80,23 @@ class _NLLBBackend:
 
 
 class Translator:
-    """Translates English text to Korean in a background thread."""
+    """Translates English text to Korean. Thread-safe."""
 
     def __init__(self, backend: str = "google"):
-        """
-        Args:
-            backend: "google" for Google Translate, "ai" for local NLLB-200 model.
-        """
         if backend == "ai":
             self._backend = _NLLBBackend()
         else:
             self._backend = _GoogleBackend()
+        self._lock = threading.Lock()
 
-        self._input_queue: queue.Queue[str] = queue.Queue()
-        self._output_queue: queue.Queue[TranslationResult] = queue.Queue()
-        self._running = False
-        self._thread = None
+    def translate(self, english_text: str) -> str:
+        """Translate English text to Korean (blocking, thread-safe).
 
-    def _worker(self):
-        """Background worker that processes translation requests."""
-        while self._running:
+        Returns Korean text, or an error placeholder on failure.
+        """
+        with self._lock:
             try:
-                english_text = self._input_queue.get(timeout=0.1)
-            except queue.Empty:
-                continue
-
-            try:
-                korean_text = self._backend.translate(english_text)
-            except Exception:
-                korean_text = "(translation error)"
-
-            self._output_queue.put(TranslationResult(english_text, korean_text))
-
-    def start(self):
-        """Start the translation worker thread."""
-        self._running = True
-        self._thread = threading.Thread(target=self._worker, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """Stop the translation worker thread."""
-        self._running = False
-        if self._thread is not None:
-            self._thread.join(timeout=2.0)
-            self._thread = None
-
-    def submit(self, english_text: str):
-        """Submit English text for translation."""
-        self._input_queue.put(english_text)
-
-    def get_result(self, timeout: float = None) -> TranslationResult | None:
-        """Get a translation result. Returns None on timeout."""
-        try:
-            return self._output_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
+                return self._backend.translate(english_text)
+            except Exception as e:
+                print(f"[ERROR] Translation failed: {e}")
+                return "(translation failed)"
