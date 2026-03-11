@@ -11,6 +11,7 @@ Device selection:
 - "auto"         : Tries CUDA -> OpenVINO GPU -> CPU
 """
 
+import re
 from collections import deque
 
 import numpy as np
@@ -263,6 +264,175 @@ _DOMAIN_VOCAB = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Post-processing: domain term correction
+# ---------------------------------------------------------------------------
+# Whisper often mis-transcribes domain-specific acronyms and product names.
+# This corrector applies regex-based rules AFTER transcription to fix them.
+
+# Tier 1: Exact case-insensitive word replacements.
+# Maps lowercased token(s) → correct form.
+_EXACT_CORRECTIONS: dict[str, str] = {
+    # Zscaler products
+    "zscaler": "Zscaler",
+    "z-scaler": "Zscaler",
+    "zscalar": "Zscaler",
+    "zee scaler": "Zscaler",
+    "zia": "ZIA",
+    "z.i.a.": "ZIA",
+    "zpa": "ZPA",
+    "z.p.a.": "ZPA",
+    "zdx": "ZDX",
+    "z.d.x.": "ZDX",
+    "zcc": "ZCC",
+    "z.c.c.": "ZCC",
+    "ztna": "ZTNA",
+    "z.t.n.a.": "ZTNA",
+    # Zscaler components
+    "app connector": "App Connector",
+    "service edge": "Service Edge",
+    "cloud connector": "Cloud Connector",
+    "branch connector": "Branch Connector",
+    "client connector": "Client Connector",
+    "nanolog": "Nanolog",
+    # Security acronyms — phonetic misrecognitions
+    "sassy": "SASE",
+    "sase": "SASE",
+    "sasi": "SASE",
+    "sassi": "SASE",
+    "sse": "SSE",
+    "casb": "CASB",
+    "kazb": "CASB",
+    "cas b": "CASB",
+    "dlp": "DLP",
+    "swg": "SWG",
+    "ciso": "CISO",
+    "see so": "CISO",
+    "seeso": "CISO",
+    "c-so": "CISO",
+    "siem": "SIEM",
+    "seem": "SIEM",
+    "soar": "SOAR",
+    "soc": "SOC",
+    "edr": "EDR",
+    "xdr": "XDR",
+    "mdr": "MDR",
+    "ndr": "NDR",
+    # Networking
+    "sd-wan": "SD-WAN",
+    "sd wan": "SD-WAN",
+    "sdwan": "SD-WAN",
+    "mpls": "MPLS",
+    "bgp": "BGP",
+    "ospf": "OSPF",
+    "ipsec": "IPsec",
+    "ip sec": "IPsec",
+    "gre": "GRE",
+    "pac file": "PAC file",
+    "pack file": "PAC file",
+    # Identity
+    "saml": "SAML",
+    "scim": "SCIM",
+    "skim": "SCIM",
+    "oauth": "OAuth",
+    "mfa": "MFA",
+    "sso": "SSO",
+    "idp": "IdP",
+    "okta": "Okta",
+    "octa": "Okta",
+    # Cloud
+    "saas": "SaaS",
+    "sass": "SaaS",
+    "iaas": "IaaS",
+    "paas": "PaaS",
+    "kubernetes": "Kubernetes",
+    "aws": "AWS",
+    "gcp": "GCP",
+    # Business terms
+    "poc": "POC",
+    "pov": "POV",
+    "rfp": "RFP",
+    "sla": "SLA",
+    "rsc": "RSC",
+    "tsc": "TSC",
+    "tas": "TAS",
+    "tam": "TAM",
+    "nss": "NSS",
+    "c-level": "C-level",
+    "c level": "C-level",
+    "sea level": "C-level",
+    "cio": "CIO",
+    "cto": "CTO",
+    "cso": "CSO",
+    # IoT / OT
+    "iot": "IoT",
+    "scada": "SCADA",
+    "ics": "ICS",
+    # Zscaler release terms
+    "la": "LA",
+    "ga": "GA",
+}
+
+# Tier 2: Regex patterns for multi-word or contextual corrections.
+# Each tuple: (compiled_regex, replacement_string)
+_REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
+    # "zero trust network access" → proper casing
+    (re.compile(r"\bzero\s+trust\s+network\s+access\b", re.I), "Zero Trust Network Access"),
+    (re.compile(r"\bzero\s+trust\s+exchange\b", re.I), "Zero Trust Exchange"),
+    (re.compile(r"\bzero\s+trust\b", re.I), "Zero Trust"),
+    # "Zscaler Internet/Private/Digital ..."
+    (re.compile(r"\bz(?:ee\s*)?scaler\s+internet\s+access\b", re.I), "Zscaler Internet Access"),
+    (re.compile(r"\bz(?:ee\s*)?scaler\s+private\s+access\b", re.I), "Zscaler Private Access"),
+    (re.compile(r"\bz(?:ee\s*)?scaler\s+digital\s+experience\b", re.I), "Zscaler Digital Experience"),
+    (re.compile(r"\bz(?:ee\s*)?scaler\s+client\s+connector\b", re.I), "Zscaler Client Connector"),
+    # "limited availability" / "general availability"
+    (re.compile(r"\blimited\s+availab\w+\b", re.I), "Limited Availability"),
+    (re.compile(r"\bgeneral\s+availab\w+\b", re.I), "General Availability"),
+    # "secure web gateway"
+    (re.compile(r"\bsecure\s+web\s+gateway\b", re.I), "Secure Web Gateway"),
+    # "indicators of compromise"
+    (re.compile(r"\bindicators?\s+of\s+compromise\b", re.I), "indicators of compromise"),
+    # SSL/TLS inspection
+    (re.compile(r"\bssl\s+inspection\b", re.I), "SSL inspection"),
+    (re.compile(r"\btls\s+inspection\b", re.I), "TLS inspection"),
+    # "active directory"
+    (re.compile(r"\bactive\s+directory\b", re.I), "Active Directory"),
+    # "azure ad" / "azure a.d."
+    (re.compile(r"\bazure\s+a\.?d\.?\b", re.I), "Azure AD"),
+    # "threat intelligence"
+    (re.compile(r"\bthreat\s+intelligen\w+\b", re.I), "threat intelligence"),
+    # "lateral movement"
+    (re.compile(r"\blateral\s+movement\b", re.I), "lateral movement"),
+    # "least privilege"
+    (re.compile(r"\bleast\s+privilege\b", re.I), "least privilege"),
+]
+
+# Build a lookup for single-word and multi-word exact corrections.
+# We need to match longest phrases first to avoid partial replacements.
+_SORTED_EXACT_KEYS = sorted(_EXACT_CORRECTIONS.keys(), key=len, reverse=True)
+_EXACT_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b" + re.escape(key) + r"\b", re.I), repl)
+    for key, repl in
+    sorted(_EXACT_CORRECTIONS.items(), key=lambda x: len(x[0]), reverse=True)
+]
+
+
+def _correct_domain_terms(text: str) -> str:
+    """Apply domain-specific corrections to Whisper output."""
+    if not text:
+        return text
+
+    # Apply regex (multi-word) corrections first — longest patterns first
+    for pattern, replacement in _REGEX_CORRECTIONS:
+        text = pattern.sub(replacement, text)
+
+    # Apply exact word/phrase corrections
+    for pattern, replacement in _EXACT_PATTERNS:
+        text = pattern.sub(replacement, text)
+
+    return text
+
+
 def _is_repetitive(text: str, max_ratio: float = 0.4) -> bool:
     """Detect Whisper hallucination where the same phrase is repeated many times.
 
@@ -372,7 +542,9 @@ class Transcriber:
             self._context.clear()  # Reset context to break the loop
             return ""
 
+        # Post-process: correct domain-specific terms
         if full_text:
+            full_text = _correct_domain_terms(full_text)
             self._context.append(full_text)
 
         return full_text
