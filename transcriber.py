@@ -232,35 +232,62 @@ _ACCENT_PROMPT = (
 # Whisper uses the prompt as context — mentioning these terms biases the
 # decoder toward recognizing them correctly instead of similar-sounding words.
 _DOMAIN_VOCAB = (
-    # Zscaler products and features
-    "Zscaler, ZIA, ZPA, ZDX, ZCC, Zscaler Client Connector, "
-    "Zscaler Internet Access, Zscaler Private Access, "
-    "Zscaler Digital Experience, Zscaler Zero Trust Exchange, "
-    "ZTNA, Zero Trust Network Access, "
+    # Zscaler products and platform
+    "Zscaler, ZIA, ZPA, ZDX, ZCC, ZTNA, ZEN, "
+    "Zscaler Client Connector, Zscaler Internet Access, "
+    "Zscaler Private Access, Zscaler Digital Experience, "
+    "Zscaler Zero Trust Exchange, Zscaler One, Zscaler Risk360, "
+    "Zscaler Deception, Zscaler Posture Control, Zscaler Data Protection, "
+    "Zscaler Workload Segmentation, Zscaler Cloud Protection, "
+    "Zscaler Browser Isolation, "
+    # Zscaler components
+    "App Connector, Service Edge, Private Service Edge, "
+    "Cloud Connector, Branch Connector, "
+    "Nanolog, Nanolog Streaming Service, NSS, ECRS, "
+    "Z-Tunnel, Z-Tunnel 1.0, Z-Tunnel 2.0, "
+    "App Segment, Segment Group, Server Group, "
+    "CloudPath, "
+    # Zscaler release terms
     "LA, Limited Availability, GA, General Availability, "
-    "App Connector, Service Edge, Cloud Connector, Branch Connector, "
-    "CASB, DLP, SWG, Secure Web Gateway, "
-    "Zscaler Deception, ZPA Private Service Edge, "
-    "NSS, Nanolog Streaming Service, "
-    # Networking and security
-    "SSL inspection, TLS, HTTPS, SD-WAN, MPLS, BGP, OSPF, "
-    "SASE, SSE, SaaS, IaaS, PaaS, "
-    "firewall, proxy, VPN, IPsec, GRE tunnel, PAC file, "
-    "CIDR, subnet, VLAN, DNS, DHCP, NAT, "
-    "IdP, SAML, SCIM, OAuth, MFA, SSO, Active Directory, Okta, Azure AD, "
+    "EOL, End of Life, EOS, End of Support, "
+    # Security concepts
+    "SASE, Secure Access Service Edge, SSE, Security Service Edge, "
+    "CASB, Cloud Access Security Broker, DLP, Data Loss Prevention, "
+    "SWG, Secure Web Gateway, "
+    "SSL inspection, TLS inspection, SSL decryption, "
+    "deep packet inspection, "
     "SIEM, SOAR, SOC, EDR, XDR, MDR, NDR, "
-    "CVE, IOC, indicators of compromise, threat intelligence, "
+    "APT, Advanced Persistent Threat, "
+    "CVE, IOC, IOCs, TTPs, MITRE ATT&CK, "
+    "attack surface, security posture, Zero Trust, "
     "malware, ransomware, phishing, lateral movement, "
     "microsegmentation, least privilege, "
+    "Advanced Threat Protection, "
+    # Networking
+    "SD-WAN, MPLS, BGP, OSPF, IPsec, GRE tunnel, PAC file, "
+    "TCP, UDP, HTTP, HTTPS, SSL, TLS, DNS, DHCP, NAT, "
+    "CIDR, subnet, VLAN, QoS, SNMP, "
+    "Gbps, Mbps, Kbps, bandwidth, throughput, latency, jitter, packet loss, "
+    "1 Gbps, 10 Gbps, 100 Gbps, "
+    "firewall, proxy, VPN, "
+    # Identity
+    "IdP, Identity Provider, SAML, SCIM, OAuth, MFA, SSO, "
+    "Active Directory, Azure AD, Entra ID, Okta, "
+    "LDAP, RADIUS, RBAC, IAM, PAM, "
+    "multi-factor authentication, single sign-on, "
     # Cloud and infrastructure
-    "AWS, Azure, GCP, Kubernetes, Docker, "
-    "EC2, S3, VPC, Lambda, "
-    "IoT, OT, SCADA, ICS, "
-    # Common IT/business terms
-    "SLA, RFP, POC, POV, PoC, PoV, "
+    "SaaS, IaaS, PaaS, "
+    "AWS, Azure, GCP, Kubernetes, K8s, Docker, "
+    "EC2, S3, VPC, Lambda, Terraform, "
+    "on-premises, hybrid cloud, multi-cloud, public cloud, private cloud, "
+    "DevOps, DevSecOps, CI/CD, API, REST API, SDK, "
+    "IoT, OT, SCADA, ICS, PLC, "
+    # Business / organizational
+    "SLA, RFP, RFI, SOW, ROI, TCO, OPEX, CAPEX, KPI, "
+    "POC, POV, PoC, PoV, "
     "RSC, TSC, TAS, TAM, SA, PM, SE, "
     "SNAP, SNAPs, Artex, "
-    "C-level, CIO, CISO, CTO, CSO"
+    "C-level, CIO, CISO, CTO, CSO, VP, SVP"
 )
 
 
@@ -273,11 +300,12 @@ _DOMAIN_VOCAB = (
 # Tier 1: Exact case-insensitive word replacements.
 # Maps lowercased token(s) → correct form.
 _EXACT_CORRECTIONS: dict[str, str] = {
-    # Zscaler products
+    # === Zscaler Products & Platforms ===
     "zscaler": "Zscaler",
     "z-scaler": "Zscaler",
     "zscalar": "Zscaler",
     "zee scaler": "Zscaler",
+    "z scaler": "Zscaler",
     "zia": "ZIA",
     "z.i.a.": "ZIA",
     "zpa": "ZPA",
@@ -288,24 +316,58 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "z.c.c.": "ZCC",
     "ztna": "ZTNA",
     "z.t.n.a.": "ZTNA",
-    # Zscaler components
+    # Zscaler components & connectors
     "app connector": "App Connector",
     "service edge": "Service Edge",
     "cloud connector": "Cloud Connector",
     "branch connector": "Branch Connector",
     "client connector": "Client Connector",
+    "private service edge": "Private Service Edge",
     "nanolog": "Nanolog",
-    # Security acronyms — phonetic misrecognitions
+    "zen": "ZEN",
+    "zen node": "ZEN node",
+    "z tunnel": "Z-Tunnel",
+    "z-tunnel": "Z-Tunnel",
+    # Zscaler features
+    "browser isolation": "Browser Isolation",
+    "cloud firewall": "Cloud Firewall",
+    "sandbox": "Sandbox",
+    "data protection": "Data Protection",
+    "workload segmentation": "Workload Segmentation",
+    "workload communications": "Workload Communications",
+    "posture control": "Posture Control",
+    "risk score": "Risk Score",
+    "cloud security posture management": "Cloud Security Posture Management",
+    "cspm": "CSPM",
+    "digital experience monitoring": "Digital Experience Monitoring",
+    "user experience": "User Experience",
+    "cloud path": "CloudPath",
+    "cloudpath": "CloudPath",
+    "app segmentation": "App Segmentation",
+    "app segment": "App Segment",
+    "server group": "Server Group",
+    "segment group": "Segment Group",
+    "idp": "IdP",
+    "ecrs": "ECRS",
+    # Zscaler deployment / release
+    "zscaler one": "Zscaler One",
+    "z1": "Z1",
+
+    # === Security Acronyms & Terms ===
+    # SASE / SSE
     "sassy": "SASE",
     "sase": "SASE",
     "sasi": "SASE",
     "sassi": "SASE",
     "sse": "SSE",
+    # CASB / DLP / SWG
     "casb": "CASB",
     "kazb": "CASB",
     "cas b": "CASB",
+    "castle": "CASB",
     "dlp": "DLP",
     "swg": "SWG",
+    # SOC / SIEM / SOAR
     "ciso": "CISO",
     "see so": "CISO",
     "seeso": "CISO",
@@ -314,11 +376,24 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "seem": "SIEM",
     "soar": "SOAR",
     "soc": "SOC",
+    # EDR / XDR / NDR
     "edr": "EDR",
     "xdr": "XDR",
     "mdr": "MDR",
     "ndr": "NDR",
-    # Networking
+    # Threat-related
+    "apt": "APT",
+    "cve": "CVE",
+    "ioc": "IOC",
+    "iocs": "IOCs",
+    "ttps": "TTPs",
+    "ttp": "TTP",
+    "mitre": "MITRE",
+    "mitre attack": "MITRE ATT&CK",
+    "mitre att&ck": "MITRE ATT&CK",
+
+    # === Networking ===
+    # Protocols & standards
     "sd-wan": "SD-WAN",
     "sd wan": "SD-WAN",
     "sdwan": "SD-WAN",
@@ -328,83 +403,201 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "ipsec": "IPsec",
     "ip sec": "IPsec",
     "gre": "GRE",
+    "tcp": "TCP",
+    "udp": "UDP",
+    "http": "HTTP",
+    "https": "HTTPS",
+    "ssl": "SSL",
+    "tls": "TLS",
+    "dns": "DNS",
+    "dhcp": "DHCP",
+    "nat": "NAT",
+    "vlan": "VLAN",
+    "cidr": "CIDR",
+    "qos": "QoS",
+    "snmp": "SNMP",
     "pac file": "PAC file",
     "pack file": "PAC file",
-    # Identity
+    # Units — Whisper often spells out abbreviations
+    "gig": "Gbps",
+    "gigs": "Gbps",
+    "gbps": "Gbps",
+    "mbps": "Mbps",
+    "kbps": "Kbps",
+    "gigabit": "Gigabit",
+    "gigabyte": "Gigabyte",
+    "terabyte": "Terabyte",
+    "petabyte": "Petabyte",
+    "tb": "TB",
+    "gb": "GB",
+    "mb": "MB",
+
+    # === Identity & Access ===
     "saml": "SAML",
     "scim": "SCIM",
     "skim": "SCIM",
     "oauth": "OAuth",
     "mfa": "MFA",
     "sso": "SSO",
-    "idp": "IdP",
     "okta": "Okta",
     "octa": "Okta",
-    # Cloud
+    "ldap": "LDAP",
+    "radius": "RADIUS",
+    "rbac": "RBAC",
+    "abac": "ABAC",
+    "pam": "PAM",
+    "iam": "IAM",
+    "entra id": "Entra ID",
+
+    # === Cloud & Infrastructure ===
     "saas": "SaaS",
     "sass": "SaaS",
     "iaas": "IaaS",
     "paas": "PaaS",
     "kubernetes": "Kubernetes",
+    "k8s": "K8s",
     "aws": "AWS",
     "gcp": "GCP",
-    # Business terms
+    "vpc": "VPC",
+    "ec2": "EC2",
+    "lambda": "Lambda",
+    "terraform": "Terraform",
+    "ansible": "Ansible",
+    "devops": "DevOps",
+    "devsecops": "DevSecOps",
+    "ci cd": "CI/CD",
+    "ci/cd": "CI/CD",
+    "api": "API",
+    "rest api": "REST API",
+    "sdk": "SDK",
+    # IoT / OT
+    "iot": "IoT",
+    "scada": "SCADA",
+    "ics": "ICS",
+    "ot": "OT",
+    "plc": "PLC",
+
+    # === Business / Organizational ===
     "poc": "POC",
     "pov": "POV",
     "rfp": "RFP",
+    "rfi": "RFI",
     "sla": "SLA",
+    "sow": "SOW",
+    "roi": "ROI",
+    "tco": "TCO",
+    "opex": "OPEX",
+    "capex": "CAPEX",
+    "kpi": "KPI",
     "rsc": "RSC",
     "tsc": "TSC",
     "tas": "TAS",
     "tam": "TAM",
     "nss": "NSS",
+    "se": "SE",
+    "sa": "SA",
     "c-level": "C-level",
     "c level": "C-level",
     "sea level": "C-level",
     "cio": "CIO",
     "cto": "CTO",
     "cso": "CSO",
-    # IoT / OT
-    "iot": "IoT",
-    "scada": "SCADA",
-    "ics": "ICS",
+    "vp": "VP",
+    "svp": "SVP",
+    "evp": "EVP",
     # Zscaler release terms
     "la": "LA",
     "ga": "GA",
+    "eol": "EOL",
+    "eos": "EOS",
 }
 
 # Tier 2: Regex patterns for multi-word or contextual corrections.
 # Each tuple: (compiled_regex, replacement_string)
 _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
-    # "zero trust network access" → proper casing
+    # === Zscaler full product names (longest first) ===
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+internet\s+access\b", re.I), "Zscaler Internet Access"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+private\s+access\b", re.I), "Zscaler Private Access"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+digital\s+experience\b", re.I), "Zscaler Digital Experience"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+client\s+connector\b", re.I), "Zscaler Client Connector"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+cloud\s+protection\b", re.I), "Zscaler Cloud Protection"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+workload\s+segmentation\b", re.I), "Zscaler Workload Segmentation"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+workload\s+communications\b", re.I), "Zscaler Workload Communications"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+data\s+protection\b", re.I), "Zscaler Data Protection"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+deception\b", re.I), "Zscaler Deception"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+posture\s+control\b", re.I), "Zscaler Posture Control"),
+    (re.compile(r"\bz(?:ee\s*)?scal[ae]r\s+risk\s*360\b", re.I), "Zscaler Risk360"),
+
+    # === Zero Trust phrases ===
     (re.compile(r"\bzero\s+trust\s+network\s+access\b", re.I), "Zero Trust Network Access"),
     (re.compile(r"\bzero\s+trust\s+exchange\b", re.I), "Zero Trust Exchange"),
+    (re.compile(r"\bzero\s+trust\s+architecture\b", re.I), "Zero Trust Architecture"),
     (re.compile(r"\bzero\s+trust\b", re.I), "Zero Trust"),
-    # "Zscaler Internet/Private/Digital ..."
-    (re.compile(r"\bz(?:ee\s*)?scaler\s+internet\s+access\b", re.I), "Zscaler Internet Access"),
-    (re.compile(r"\bz(?:ee\s*)?scaler\s+private\s+access\b", re.I), "Zscaler Private Access"),
-    (re.compile(r"\bz(?:ee\s*)?scaler\s+digital\s+experience\b", re.I), "Zscaler Digital Experience"),
-    (re.compile(r"\bz(?:ee\s*)?scaler\s+client\s+connector\b", re.I), "Zscaler Client Connector"),
-    # "limited availability" / "general availability"
+
+    # === Availability / Release ===
     (re.compile(r"\blimited\s+availab\w+\b", re.I), "Limited Availability"),
     (re.compile(r"\bgeneral\s+availab\w+\b", re.I), "General Availability"),
-    # "secure web gateway"
+    (re.compile(r"\bend\s+of\s+life\b", re.I), "End of Life"),
+    (re.compile(r"\bend\s+of\s+support\b", re.I), "End of Support"),
+
+    # === Security phrases ===
     (re.compile(r"\bsecure\s+web\s+gateway\b", re.I), "Secure Web Gateway"),
-    # "indicators of compromise"
+    (re.compile(r"\bcloud\s+access\s+security\s+broker\b", re.I), "Cloud Access Security Broker"),
+    (re.compile(r"\bdata\s+loss\s+prevention\b", re.I), "Data Loss Prevention"),
+    (re.compile(r"\bdata\s+leakage\s+prevention\b", re.I), "Data Leakage Prevention"),
     (re.compile(r"\bindicators?\s+of\s+compromise\b", re.I), "indicators of compromise"),
-    # SSL/TLS inspection
+    (re.compile(r"\badvanced\s+threat\s+protection\b", re.I), "Advanced Threat Protection"),
+    (re.compile(r"\badvanced\s+persistent\s+threat\b", re.I), "Advanced Persistent Threat"),
+    (re.compile(r"\bthreat\s+intelligen\w+\b", re.I), "threat intelligence"),
+    (re.compile(r"\blateral\s+movement\b", re.I), "lateral movement"),
+    (re.compile(r"\bleast\s+privilege\b", re.I), "least privilege"),
+    (re.compile(r"\battack\s+surface\b", re.I), "attack surface"),
+    (re.compile(r"\bsecurity\s+posture\b", re.I), "security posture"),
+    (re.compile(r"\bsecurity\s+service\s+edge\b", re.I), "Security Service Edge"),
+    (re.compile(r"\bsecure\s+access\s+service\s+edge\b", re.I), "Secure Access Service Edge"),
+
+    # === SSL / TLS / inspection ===
     (re.compile(r"\bssl\s+inspection\b", re.I), "SSL inspection"),
     (re.compile(r"\btls\s+inspection\b", re.I), "TLS inspection"),
-    # "active directory"
+    (re.compile(r"\bssl\s+decryption\b", re.I), "SSL decryption"),
+    (re.compile(r"\bdeep\s+packet\s+inspection\b", re.I), "deep packet inspection"),
+
+    # === Identity ===
     (re.compile(r"\bactive\s+directory\b", re.I), "Active Directory"),
-    # "azure ad" / "azure a.d."
     (re.compile(r"\bazure\s+a\.?d\.?\b", re.I), "Azure AD"),
-    # "threat intelligence"
-    (re.compile(r"\bthreat\s+intelligen\w+\b", re.I), "threat intelligence"),
-    # "lateral movement"
-    (re.compile(r"\blateral\s+movement\b", re.I), "lateral movement"),
-    # "least privilege"
-    (re.compile(r"\bleast\s+privilege\b", re.I), "least privilege"),
+    (re.compile(r"\bentra\s+id\b", re.I), "Entra ID"),
+    (re.compile(r"\bidentity\s+provider\b", re.I), "Identity Provider"),
+    (re.compile(r"\bmulti[- ]?factor\s+auth\w*\b", re.I), "multi-factor authentication"),
+    (re.compile(r"\bsingle\s+sign[- ]?on\b", re.I), "single sign-on"),
+
+    # === Networking units — "10 gig" → "10 Gbps", "one gig" → "1 Gbps" ===
+    (re.compile(r"\b(\d+)\s*gig(?:s|abit)?(?:\s+per\s+second)?\b", re.I),
+     lambda m: f"{m.group(1)} Gbps"),
+    (re.compile(r"\b(\d+)\s*meg(?:s|abit)?(?:\s+per\s+second)?\b", re.I),
+     lambda m: f"{m.group(1)} Mbps"),
+    # "one gig", "a gig" (without number)
+    (re.compile(r"\bone\s+gig\b", re.I), "1 Gbps"),
+    (re.compile(r"\ba\s+gig\b", re.I), "1 Gbps"),
+    # "100 meg pipe" / "10 gig pipe" → "100 Mbps pipe" / "10 Gbps pipe"
+    (re.compile(r"\b(\d+)\s*gig\s+(pipe|link|line|port|connection|interface)\b", re.I),
+     lambda m: f"{m.group(1)} Gbps {m.group(2)}"),
+    (re.compile(r"\b(\d+)\s*meg\s+(pipe|link|line|port|connection|interface)\b", re.I),
+     lambda m: f"{m.group(1)} Mbps {m.group(2)}"),
+
+    # === Cloud / infra phrases ===
+    (re.compile(r"\bvirtual\s+private\s+cloud\b", re.I), "Virtual Private Cloud"),
+    (re.compile(r"\bpublic\s+cloud\b", re.I), "public cloud"),
+    (re.compile(r"\bprivate\s+cloud\b", re.I), "private cloud"),
+    (re.compile(r"\bhybrid\s+cloud\b", re.I), "hybrid cloud"),
+    (re.compile(r"\bmulti[- ]?cloud\b", re.I), "multi-cloud"),
+    (re.compile(r"\bon[- ]?prem(?:ise)?s?\b", re.I), "on-premises"),
+
+    # === Bandwidth / throughput expressions ===
+    (re.compile(r"\bbandwidth\b", re.I), "bandwidth"),
+    (re.compile(r"\bthroughput\b", re.I), "throughput"),
+    (re.compile(r"\blatency\b", re.I), "latency"),
+    (re.compile(r"\bjitter\b", re.I), "jitter"),
+    (re.compile(r"\bpacket\s+loss\b", re.I), "packet loss"),
 ]
 
 # Build a lookup for single-word and multi-word exact corrections.
