@@ -179,7 +179,7 @@ class App:
             except _queue.Empty:
                 continue
 
-            result = self.translator.get_result(timeout=10.0)
+            result = self.translator.get_result(timeout=30.0)
 
             if result is None:
                 korean_text = "(translation timeout)"

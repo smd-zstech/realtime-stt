@@ -61,12 +61,15 @@ def _resolve_device(device: str) -> str:
         return "cpu"
 
     if device == "auto":
+        # Check OpenVINO first — its import is lightweight.
+        # ctranslate2/torch import (needed for CUDA check) can be heavy or
+        # even hang on some Windows setups, so we avoid it when possible.
+        if _openvino_available():
+            print("[INFO] Intel GPU detected. Using OpenVINO GPU.")
+            return "openvino-gpu"
         if _cuda_available():
             print("[INFO] NVIDIA GPU detected. Using CUDA.")
             return "cuda"
-        # Prefer faster-whisper CPU over OpenVINO — better quality
-        # (VAD filter, prompt support, int8 quantization).
-        # Use --device openvino-gpu explicitly if GPU acceleration is desired.
         print("[INFO] Using CPU (faster-whisper with int8).")
         return "cpu"
 
@@ -108,8 +111,12 @@ class _FasterWhisperBackend:
             language=language,
             initial_prompt=initial_prompt,
             beam_size=self._beam_size,
-            temperature=0.0,
+            temperature=[0.0, 0.2, 0.4, 0.6],
             condition_on_previous_text=True,
+            suppress_blank=True,
+            no_speech_threshold=0.5,
+            log_prob_threshold=-0.8,
+            compression_ratio_threshold=2.4,
             vad_filter=True,
             vad_parameters=dict(
                 min_silence_duration_ms=300,

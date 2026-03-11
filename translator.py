@@ -19,15 +19,41 @@ class TranslationResult(NamedTuple):
 
 
 class _GoogleBackend:
-    """Google Translate backend."""
+    """Google Translate backend with retry and rate-limit handling."""
 
     def __init__(self):
         from deep_translator import GoogleTranslator
         self._translator = GoogleTranslator(source="en", target="ko")
+        self._last_request_time = 0.0
 
     def translate(self, text: str) -> str:
-        result = self._translator.translate(text)
-        return result if result else "(translation failed)"
+        import time
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            # Rate limit: ensure at least 0.5s between requests
+            now = time.monotonic()
+            elapsed = now - self._last_request_time
+            if elapsed < 0.5:
+                time.sleep(0.5 - elapsed)
+
+            try:
+                self._last_request_time = time.monotonic()
+                result = self._translator.translate(text)
+                return result if result else "(translation failed)"
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 2  # 2s, 4s backoff
+                    print(f"[WARN] Translation retry {attempt + 1}/{max_retries} "
+                          f"after {wait}s: {e}")
+                    time.sleep(wait)
+                    # Recreate translator instance in case of stale connection
+                    from deep_translator import GoogleTranslator
+                    self._translator = GoogleTranslator(source="en", target="ko")
+                else:
+                    print(f"[ERROR] Translation failed after {max_retries} retries: {e}")
+                    return "(translation failed)"
+        return "(translation failed)"
 
 
 class _NLLBBackend:
