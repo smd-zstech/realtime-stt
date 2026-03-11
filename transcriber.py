@@ -12,7 +12,7 @@ Device selection:
 """
 
 import re
-from collections import deque
+from collections import Counter, deque
 
 import numpy as np
 
@@ -278,19 +278,64 @@ _DOMAIN_VOCAB = (
     "LA, Limited Availability, GA, General Availability, "
     "EOL, End of Life, EOS, End of Support, "
     "Business, Transformation, Unlimited, "
-    # Security concepts
+    # === SASE / SSE architecture ===
     "SASE, Secure Access Service Edge, SSE, Security Service Edge, "
     "CASB, Cloud Access Security Broker, DLP, Data Loss Prevention, "
-    "SWG, Secure Web Gateway, "
+    "SWG, Secure Web Gateway, FWaaS, Firewall as a Service, "
+    "RBI, Remote Browser Isolation, "
+    "ZTNA, Zero Trust Network Access, "
+    "inline CASB, out-of-band CASB, forward proxy, reverse proxy, "
+    "explicit proxy, transparent proxy, proxy chaining, "
     "SSL inspection, TLS inspection, SSL decryption, "
-    "deep packet inspection, "
-    "SIEM, SOAR, SOC, EDR, XDR, MDR, NDR, "
+    "deep packet inspection, full SSL inspection, "
+    "traffic steering, traffic forwarding, split tunnel, full tunnel, "
+    "GRE tunnel, IPsec tunnel, PAC file, "
+    "user-to-app, app-to-app, branch-to-internet, branch-to-cloud, "
+    "east-west traffic, north-south traffic, "
+    "backhauling, hair-pinning, direct-to-cloud, local breakout, "
+    "internet breakout, cloud-first, "
+    # Security operations & frameworks
+    "SIEM, SOAR, SOC, SOC analyst, "
+    "EDR, XDR, MDR, NDR, "
+    "UEBA, User and Entity Behavior Analytics, "
+    "NGFW, Next-Generation Firewall, "
+    "WAF, Web Application Firewall, "
+    "IDS, Intrusion Detection System, "
+    "IPS, Intrusion Prevention System, "
+    "DDoS, Distributed Denial of Service, "
+    "PAM, Privileged Access Management, "
+    "CISA, NIST, ISO 27001, SOC 2, FedRAMP, "
+    "compliance, governance, audit, "
+    # Threat & attack concepts
     "APT, Advanced Persistent Threat, "
     "CVE, IOC, IOCs, TTPs, MITRE ATT&CK, "
     "attack surface, security posture, Zero Trust, "
-    "malware, ransomware, phishing, lateral movement, "
+    "malware, ransomware, phishing, spear phishing, "
+    "lateral movement, privilege escalation, "
+    "data exfiltration, credential theft, credential stuffing, "
+    "brute force, man-in-the-middle, MITM, "
+    "supply chain attack, zero-day, zero day exploit, "
+    "social engineering, business email compromise, BEC, "
+    "DNS tunneling, DNS exfiltration, "
+    "command and control, C2, beaconing, "
+    "botnet, trojan, worm, rootkit, keylogger, "
+    "sandbox evasion, polymorphic malware, fileless malware, "
+    "insider threat, shadow IT, shadow AI, "
     "microsegmentation, least privilege, "
-    "C2, command and control, "
+    # Encryption & certificates
+    "PKI, Public Key Infrastructure, "
+    "CA, Certificate Authority, "
+    "TLS 1.2, TLS 1.3, mTLS, mutual TLS, "
+    "certificate pinning, SSL certificate, "
+    "encryption at rest, encryption in transit, "
+    # Network security architecture
+    "DMZ, demilitarized zone, "
+    "air gap, network segmentation, "
+    "perimeter security, perimeterless, "
+    "hub-and-spoke, mesh architecture, "
+    "overlay network, underlay network, "
+    "SD-WAN overlay, SASE PoP, "
+    "egress, ingress, "
     # Networking
     "SD-WAN, MPLS, BGP, OSPF, IPsec, GRE tunnel, PAC file, "
     "TCP, UDP, HTTP, HTTPS, SSL, TLS, DNS, DHCP, NAT, "
@@ -458,7 +503,7 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "sasi": "SASE",
     "sassi": "SASE",
     "sse": "SSE",
-    # CASB / DLP / SWG
+    # SASE / SSE architecture components
     "casb": "CASB",
     "kazb": "CASB",
     "cas b": "CASB",
@@ -467,6 +512,37 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "swg": "SWG",
     "atp": "ATP",
     "ips": "IPS",
+    "ids": "IDS",
+    "fwaas": "FWaaS",
+    "rbi": "RBI",
+    "ngfw": "NGFW",
+    "waf": "WAF",
+    "ueba": "UEBA",
+    "forward proxy": "forward proxy",
+    "reverse proxy": "reverse proxy",
+    "explicit proxy": "explicit proxy",
+    "transparent proxy": "transparent proxy",
+    "proxy chaining": "proxy chaining",
+    "inline casb": "inline CASB",
+    "out-of-band casb": "out-of-band CASB",
+    "out of band casb": "out-of-band CASB",
+    "split tunnel": "split tunnel",
+    "full tunnel": "full tunnel",
+    "local breakout": "local breakout",
+    "internet breakout": "internet breakout",
+    "backhauling": "backhauling",
+    "back hauling": "backhauling",
+    "hair-pinning": "hair-pinning",
+    "hairpinning": "hair-pinning",
+    "direct-to-cloud": "direct-to-cloud",
+    "direct to cloud": "direct-to-cloud",
+    # Traffic direction
+    "east-west": "east-west",
+    "east west": "east-west",
+    "north-south": "north-south",
+    "north south": "north-south",
+    "egress": "egress",
+    "ingress": "ingress",
     # SOC / SIEM / SOAR
     "ciso": "CISO",
     "see so": "CISO",
@@ -481,7 +557,7 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "xdr": "XDR",
     "mdr": "MDR",
     "ndr": "NDR",
-    # Threat-related
+    # Threat & attack terms
     "apt": "APT",
     "cve": "CVE",
     "ioc": "IOC",
@@ -494,6 +570,39 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "c2": "C2",
     "c&c": "C&C",
     "command and control": "command and control",
+    "ddos": "DDoS",
+    "mitm": "MITM",
+    "man-in-the-middle": "man-in-the-middle",
+    "man in the middle": "man-in-the-middle",
+    "bec": "BEC",
+    "zero-day": "zero-day",
+    "zero day": "zero-day",
+    "data exfiltration": "data exfiltration",
+    "credential stuffing": "credential stuffing",
+    "privilege escalation": "privilege escalation",
+    "dns tunneling": "DNS tunneling",
+    "shadow it": "shadow IT",
+    "shadow ai": "shadow AI",
+    "insider threat": "insider threat",
+    "fileless malware": "fileless malware",
+    # Compliance & frameworks
+    "nist": "NIST",
+    "cisa": "CISA",
+    "fedramp": "FedRAMP",
+    "fed ramp": "FedRAMP",
+    "soc 2": "SOC 2",
+    "soc2": "SOC 2",
+    "iso 27001": "ISO 27001",
+    # Encryption & certificates
+    "pki": "PKI",
+    "mtls": "mTLS",
+    "mutual tls": "mutual TLS",
+    "tls 1.2": "TLS 1.2",
+    "tls 1.3": "TLS 1.3",
+    # Network architecture
+    "dmz": "DMZ",
+    "hub-and-spoke": "hub-and-spoke",
+    "hub and spoke": "hub-and-spoke",
 
     # === Networking ===
     # Protocols & standards
@@ -623,10 +732,10 @@ _EXACT_CORRECTIONS: dict[str, str] = {
     "ga": "GA",
     "eol": "EOL",
     "eos": "EOS",
-    # Zscaler licensing
-    "business": "Business",
-    "transformation": "Transformation",
-    "unlimited": "Unlimited",
+    # Zscaler licensing (only specific bundle names, not generic words)
+    "business bundle": "Business bundle",
+    "transformation bundle": "Transformation bundle",
+    "unlimited bundle": "Unlimited bundle",
 }
 
 # Tier 2: Regex patterns for multi-word or contextual corrections.
@@ -692,9 +801,63 @@ _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bnanolog\s+streaming\s+service\b", re.I), "Nanolog Streaming Service"),
     (re.compile(r"\blog\s+streaming\s+service\b", re.I), "Log Streaming Service"),
 
+    # === SASE / SSE architecture phrases ===
+    (re.compile(r"\bfirewall\s+as\s+a\s+service\b", re.I), "Firewall as a Service"),
+    (re.compile(r"\bremote\s+browser\s+isolation\b", re.I), "Remote Browser Isolation"),
+    (re.compile(r"\bnext[- ]?gen(?:eration)?\s+firewall\b", re.I), "Next-Generation Firewall"),
+    (re.compile(r"\bweb\s+application\s+firewall\b", re.I), "Web Application Firewall"),
+    (re.compile(r"\bintrusion\s+detection\s+system\b", re.I), "Intrusion Detection System"),
+    (re.compile(r"\bintrusion\s+prevention\s+system\b", re.I), "Intrusion Prevention System"),
+    (re.compile(r"\buser\s+and\s+entity\s+behavio(?:u)?r\s+analytics\b", re.I), "User and Entity Behavior Analytics"),
+    (re.compile(r"\bdistributed\s+denial\s+of\s+service\b", re.I), "Distributed Denial of Service"),
+    (re.compile(r"\bprivileged\s+access\s+management\b", re.I), "Privileged Access Management"),
+    (re.compile(r"\bbusiness\s+email\s+compromise\b", re.I), "business email compromise"),
+    (re.compile(r"\bsupply\s+chain\s+attack\b", re.I), "supply chain attack"),
+    (re.compile(r"\bman[- ]?in[- ]?the[- ]?middle\b", re.I), "man-in-the-middle"),
+    (re.compile(r"\bspear\s+phishing\b", re.I), "spear phishing"),
+    (re.compile(r"\bprivilege\s+escalation\b", re.I), "privilege escalation"),
+    (re.compile(r"\bdata\s+exfiltration\b", re.I), "data exfiltration"),
+    (re.compile(r"\bcredential\s+stuffing\b", re.I), "credential stuffing"),
+    (re.compile(r"\bcredential\s+theft\b", re.I), "credential theft"),
+    (re.compile(r"\bsocial\s+engineering\b", re.I), "social engineering"),
+    (re.compile(r"\bdns\s+tunneling\b", re.I), "DNS tunneling"),
+    (re.compile(r"\bdns\s+exfiltration\b", re.I), "DNS exfiltration"),
+    (re.compile(r"\bsandbox\s+evasion\b", re.I), "sandbox evasion"),
+    (re.compile(r"\bfileless\s+malware\b", re.I), "fileless malware"),
+    (re.compile(r"\binsider\s+threat\b", re.I), "insider threat"),
+    (re.compile(r"\bshadow\s+it\b", re.I), "shadow IT"),
+    (re.compile(r"\bshadow\s+ai\b", re.I), "shadow AI"),
+    (re.compile(r"\btraffic\s+steering\b", re.I), "traffic steering"),
+    (re.compile(r"\btraffic\s+forwarding\b", re.I), "traffic forwarding"),
+    (re.compile(r"\bsplit\s+tunnel(?:ing)?\b", re.I), "split tunnel"),
+    (re.compile(r"\bfull\s+tunnel(?:ing)?\b", re.I), "full tunnel"),
+    (re.compile(r"\blocal\s+breakout\b", re.I), "local breakout"),
+    (re.compile(r"\binternet\s+breakout\b", re.I), "internet breakout"),
+    (re.compile(r"\bdirect[- ]?to[- ]?cloud\b", re.I), "direct-to-cloud"),
+    (re.compile(r"\bback[- ]?haul(?:ing)?\b", re.I), "backhauling"),
+    (re.compile(r"\bhair[- ]?pin(?:ning)?\b", re.I), "hair-pinning"),
+    (re.compile(r"\beast[- ]?west\s+traffic\b", re.I), "east-west traffic"),
+    (re.compile(r"\bnorth[- ]?south\s+traffic\b", re.I), "north-south traffic"),
+    (re.compile(r"\buser[- ]?to[- ]?app\b", re.I), "user-to-app"),
+    (re.compile(r"\bapp[- ]?to[- ]?app\b", re.I), "app-to-app"),
+    (re.compile(r"\bbranch[- ]?to[- ]?(?:internet|cloud)\b", re.I),
+     lambda m: f"branch-to-{m.group(0).rsplit('to', 1)[-1].strip(' -').lower()}"),
+    (re.compile(r"\bnetwork\s+segmentation\b", re.I), "network segmentation"),
+    (re.compile(r"\bperimeter\s+security\b", re.I), "perimeter security"),
+    (re.compile(r"\bhub[- ]?and[- ]?spoke\b", re.I), "hub-and-spoke"),
+    (re.compile(r"\boverlay\s+network\b", re.I), "overlay network"),
+    (re.compile(r"\bunderlay\s+network\b", re.I), "underlay network"),
+    (re.compile(r"\bpublic\s+key\s+infrastructure\b", re.I), "Public Key Infrastructure"),
+    (re.compile(r"\bcertificate\s+authority\b", re.I), "Certificate Authority"),
+    (re.compile(r"\bmutual\s+tls\b", re.I), "mutual TLS"),
+    (re.compile(r"\bencryption\s+at\s+rest\b", re.I), "encryption at rest"),
+    (re.compile(r"\bencryption\s+in\s+transit\b", re.I), "encryption in transit"),
+    (re.compile(r"\bzero[- ]?day\s+exploit\b", re.I), "zero-day exploit"),
+
     # === SSL / TLS / inspection ===
     (re.compile(r"\bssl\s+inspection\b", re.I), "SSL inspection"),
     (re.compile(r"\btls\s+inspection\b", re.I), "TLS inspection"),
+    (re.compile(r"\bfull\s+ssl\s+inspection\b", re.I), "full SSL inspection"),
     (re.compile(r"\bssl\s+decryption\b", re.I), "SSL decryption"),
     (re.compile(r"\bdeep\s+packet\s+inspection\b", re.I), "deep packet inspection"),
 
@@ -738,14 +901,23 @@ _REGEX_CORRECTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bpacket\s+loss\b", re.I), "packet loss"),
 ]
 
-# Build a lookup for single-word and multi-word exact corrections.
-# We need to match longest phrases first to avoid partial replacements.
-_SORTED_EXACT_KEYS = sorted(_EXACT_CORRECTIONS.keys(), key=len, reverse=True)
-_EXACT_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"\b" + re.escape(key) + r"\b", re.I), repl)
-    for key, repl in
-    sorted(_EXACT_CORRECTIONS.items(), key=lambda x: len(x[0]), reverse=True)
-]
+# Build a single combined regex for all exact corrections.
+# Sorting by length (longest first) ensures multi-word phrases match before
+# their sub-phrases (e.g. "cloud browser isolation" before "browser isolation").
+# This is O(1) regex passes instead of O(n) individual pattern scans.
+_EXACT_LOOKUP: dict[str, str] = {k.lower(): v for k, v in _EXACT_CORRECTIONS.items()}
+_EXACT_COMBINED = re.compile(
+    r"\b(?:" + "|".join(
+        re.escape(key) for key in
+        sorted(_EXACT_CORRECTIONS.keys(), key=len, reverse=True)
+    ) + r")\b",
+    re.I,
+)
+
+
+def _exact_replacer(m: re.Match) -> str:
+    """Callback for the combined exact-match regex."""
+    return _EXACT_LOOKUP.get(m.group(0).lower(), m.group(0))
 
 
 def _correct_domain_terms(text: str) -> str:
@@ -757,9 +929,8 @@ def _correct_domain_terms(text: str) -> str:
     for pattern, replacement in _REGEX_CORRECTIONS:
         text = pattern.sub(replacement, text)
 
-    # Apply exact word/phrase corrections
-    for pattern, replacement in _EXACT_PATTERNS:
-        text = pattern.sub(replacement, text)
+    # Apply all exact word/phrase corrections in a single pass
+    text = _EXACT_COMBINED.sub(_exact_replacer, text)
 
     return text
 
@@ -778,7 +949,6 @@ def _is_repetitive(text: str, max_ratio: float = 0.4) -> bool:
     total = len(words)
 
     # Check single-word dominance (e.g. "the the the the the the")
-    from collections import Counter
     word_counts = Counter(words)
     most_common_word, most_common_count = word_counts.most_common(1)[0]
     if most_common_count >= 6 and most_common_count / total >= 0.6:
