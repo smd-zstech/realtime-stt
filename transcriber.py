@@ -112,17 +112,46 @@ class _FasterWhisperBackend:
             language=language,
             initial_prompt=initial_prompt,
             beam_size=self._beam_size,
-            temperature=[0.0, 0.2, 0.4, 0.6],
+            # Temperature fallback: start at 0 (greedy/deterministic), only
+            # increase if compression ratio or log prob thresholds fail.
+            # Narrower range = fewer hallucinated alternatives.
+            temperature=[0.0, 0.2, 0.4],
+            # Let Whisper condition on its own previous output within a segment
+            # for better coherence across longer utterances.
             condition_on_previous_text=True,
             suppress_blank=True,
-            no_speech_threshold=0.5,
-            log_prob_threshold=-0.8,
-            compression_ratio_threshold=2.4,
+            # Stricter no-speech threshold: reject segments with high
+            # probability of being non-speech (default 0.6, we use 0.4
+            # to be more aggressive at filtering noise/silence).
+            no_speech_threshold=0.4,
+            # Slightly more lenient log-prob threshold to keep accented speech
+            # that may have lower confidence but is still valid.
+            log_prob_threshold=-1.0,
+            # Tighter compression ratio: repetitive hallucinations often have
+            # very high compression ratios. Default 2.4, we use 2.0.
+            compression_ratio_threshold=2.0,
+            # VAD filter with Silero VAD — removes non-speech before Whisper
+            # decoding, significantly reducing hallucinations on silence.
             vad_filter=True,
             vad_parameters=dict(
-                min_silence_duration_ms=300,
-                speech_pad_ms=250,
+                # Minimum silence between speech chunks for splitting
+                min_silence_duration_ms=250,
+                # Padding around detected speech — more padding captures
+                # word onsets/offsets that might otherwise be clipped.
+                speech_pad_ms=300,
+                # Silero VAD threshold: lower = more sensitive to speech.
+                # Default 0.5; 0.35 catches softer/accented speech better.
+                threshold=0.35,
+                # Minimum speech duration to keep (filters micro-noises)
+                min_speech_duration_ms=100,
             ),
+            # Best-of-N: when temperature > 0, sample N candidates and pick
+            # the one with highest log probability. Improves quality at cost
+            # of speed. Only applies to fallback temperatures.
+            best_of=3,
+            # Patience for beam search: higher patience explores more before
+            # committing to a token. 1.5 = 50% extra exploration.
+            patience=1.5,
         )
         return " ".join(seg.text.strip() for seg in segments).strip()
 
@@ -221,148 +250,163 @@ class _OpenVINOBackend:
 # Public Transcriber class
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Compact accent hint (short — saves tokens)
+# ---------------------------------------------------------------------------
 _ACCENT_PROMPT = (
-    "The following is a conversation that may include speakers with various "
-    "English accents such as Indian, British, Australian, Singaporean, "
-    "or other non-native English accents. Listen carefully for accent "
-    "variations in pronunciation."
+    "Speakers may have Indian, British, Australian, or non-native English accents."
 )
 
-# Domain-specific vocabulary hints for Whisper initial_prompt.
-# Whisper uses the prompt as context — mentioning these terms biases the
-# decoder toward recognizing them correctly instead of similar-sounding words.
-_DOMAIN_VOCAB = (
-    # Zscaler products and platform
-    "Zscaler, ZIA, ZPA, ZDX, ZCC, ZTNA, ZEN, ZTE, ZWS, "
-    "Zscaler Client Connector, Zscaler Internet Access, "
-    "Zscaler Private Access, Zscaler Digital Experience, "
-    "Zscaler Zero Trust Exchange, Zscaler One, Zscaler Risk360, "
-    "Zscaler Deception, Zscaler Posture Control, Zscaler Data Protection, "
-    "Zscaler Workload Segmentation, Zscaler Cloud Protection, "
-    "Zscaler Browser Isolation, Zscaler Cloud Browser Isolation, "
-    "Zscaler SaaS Security, Zscaler AI Protect, ZscalerGov, "
-    "Zscaler Device Segmentation, Zero Trust SD-WAN, "
-    # Zscaler components & architecture
-    "App Connector, App Connector Group, Connector Group, "
-    "Service Edge, Public Service Edge, Private Service Edge, "
-    "Cloud Connector, Branch Connector, "
-    "Nanolog, Nanolog Streaming Service, NSS, Cloud NSS, NSS VM, "
-    "Log Streaming Service, LSS, ECRS, Central Authority, "
-    "Z-Tunnel, Z-Tunnel 1.0, Z-Tunnel 2.0, Microtunnel, "
-    "App Segment, Segment Group, Server Group, "
-    "Access Policy, Forwarding Profile, App Profile, "
-    "CloudPath, URL category, Cloud App Control, Bandwidth Control, "
-    "Trusted Network, Location, Sub-Location, "
-    # Zscaler data protection & threat features
-    "SSMA, Single Scan Multi-Action, "
-    "EDM, Exact Data Match, IDM, Indexed Document Matching, "
-    "CDR, Content Disarm and Reconstruction, OCR, "
-    "Cloud Sandbox, Cloud Firewall, Cloud IPS, DNS Security, "
-    "Advanced Threat Protection, ATP, "
-    "Privileged Remote Access, PRA, Application Discovery, "
-    "Surrogate, Device Posture, "
-    # Zscaler AI features
-    "AI Protect, AI Asset Management, Smart Isolation, "
-    # Zscaler risk & posture management
-    "CSPM, DSPM, SSPM, UVM, CNAPP, CWPP, CIEM, "
-    "EASM, External Attack Surface Management, "
-    "ITDR, Identity Threat Detection and Response, "
-    "Breach Predictor, Risk Score, "
-    # Zscaler partner program
-    "Zenith, Alpine, Basecamp, Z-Flex, ZCCP, "
-    "MSP, MSSP, VAR, ARR, "
-    # Zscaler research & knowledge
-    "ThreatLabz, Zpedia, Security Preview, Page Risk Index, "
-    # Zscaler release & licensing terms
-    "PSE, CBI, IaC, "
-    "LA, Limited Availability, GA, General Availability, "
-    "EOL, End of Life, EOS, End of Support, "
-    "Business, Transformation, Unlimited, "
-    # === SASE / SSE architecture ===
-    "SASE, Secure Access Service Edge, SSE, Security Service Edge, "
-    "CASB, Cloud Access Security Broker, DLP, Data Loss Prevention, "
-    "SWG, Secure Web Gateway, FWaaS, Firewall as a Service, "
-    "RBI, Remote Browser Isolation, "
-    "ZTNA, Zero Trust Network Access, "
-    "inline CASB, out-of-band CASB, forward proxy, reverse proxy, "
-    "explicit proxy, transparent proxy, proxy chaining, "
-    "SSL inspection, TLS inspection, SSL decryption, "
-    "deep packet inspection, full SSL inspection, "
-    "traffic steering, traffic forwarding, split tunnel, full tunnel, "
-    "GRE tunnel, IPsec tunnel, PAC file, "
-    "user-to-app, app-to-app, branch-to-internet, branch-to-cloud, "
-    "east-west traffic, north-south traffic, "
-    "backhauling, hair-pinning, direct-to-cloud, local breakout, "
-    "internet breakout, cloud-first, "
-    # Security operations & frameworks
-    "SIEM, SOAR, SOC, SOC analyst, "
-    "EDR, XDR, MDR, NDR, "
-    "UEBA, User and Entity Behavior Analytics, "
-    "NGFW, Next-Generation Firewall, "
-    "WAF, Web Application Firewall, "
-    "IDS, Intrusion Detection System, "
-    "IPS, Intrusion Prevention System, "
-    "DDoS, Distributed Denial of Service, "
-    "PAM, Privileged Access Management, "
-    "CISA, NIST, ISO 27001, SOC 2, FedRAMP, "
-    "compliance, governance, audit, "
-    # Threat & attack concepts
-    "APT, Advanced Persistent Threat, "
-    "CVE, IOC, IOCs, TTPs, MITRE ATT&CK, "
-    "attack surface, security posture, Zero Trust, "
-    "malware, ransomware, phishing, spear phishing, "
-    "lateral movement, privilege escalation, "
-    "data exfiltration, credential theft, credential stuffing, "
-    "brute force, man-in-the-middle, MITM, "
-    "supply chain attack, zero-day, zero day exploit, "
-    "social engineering, business email compromise, BEC, "
-    "DNS tunneling, DNS exfiltration, "
-    "command and control, C2, beaconing, "
-    "botnet, trojan, worm, rootkit, keylogger, "
-    "sandbox evasion, polymorphic malware, fileless malware, "
-    "insider threat, shadow IT, shadow AI, "
-    "microsegmentation, least privilege, "
-    # Encryption & certificates
-    "PKI, Public Key Infrastructure, "
-    "CA, Certificate Authority, "
-    "TLS 1.2, TLS 1.3, mTLS, mutual TLS, "
-    "certificate pinning, SSL certificate, "
-    "encryption at rest, encryption in transit, "
-    # Network security architecture
-    "DMZ, demilitarized zone, "
-    "air gap, network segmentation, "
-    "perimeter security, perimeterless, "
-    "hub-and-spoke, mesh architecture, "
-    "overlay network, underlay network, "
-    "SD-WAN overlay, SASE PoP, "
-    "egress, ingress, "
-    # Networking
-    "SD-WAN, MPLS, BGP, OSPF, IPsec, GRE tunnel, PAC file, "
-    "TCP, UDP, HTTP, HTTPS, SSL, TLS, DNS, DHCP, NAT, "
-    "CIDR, subnet, VLAN, QoS, SNMP, SDN, NFV, "
-    "Gbps, Mbps, Kbps, bandwidth, throughput, latency, jitter, packet loss, "
-    "1 Gbps, 10 Gbps, 100 Gbps, "
-    "firewall, proxy, VPN, "
-    # Identity
-    "IdP, Identity Provider, SAML, SCIM, OAuth, MFA, SSO, "
-    "Active Directory, Azure AD, Entra ID, Okta, "
-    "LDAP, RADIUS, RBAC, IAM, PAM, "
-    "multi-factor authentication, single sign-on, "
-    # Cloud and infrastructure
-    "SaaS, IaaS, PaaS, IaC, "
-    "AWS, Azure, GCP, Kubernetes, K8s, Docker, "
-    "EC2, S3, VPC, Lambda, Terraform, "
-    "on-premises, hybrid cloud, multi-cloud, public cloud, private cloud, "
-    "DevOps, DevSecOps, CI/CD, API, REST API, SDK, "
-    "IoT, OT, SCADA, ICS, PLC, "
-    # Business / organizational
-    "SLA, RFP, RFI, SOW, ROI, TCO, OPEX, CAPEX, KPI, ARR, "
-    "POC, POV, PoC, PoV, "
-    "RSC, TSC, TAS, TAM, SA, PM, SE, "
-    "MSP, MSSP, VAR, "
-    "SNAP, SNAPs, Artex, "
-    "C-level, CIO, CISO, CTO, CSO, VP, SVP"
-)
+# ---------------------------------------------------------------------------
+# Domain vocabulary organized into categories with priority weights.
+# Whisper initial_prompt is limited to ~224 tokens. We dynamically select
+# the most relevant categories to fit within budget.
+# Each category: (weight, keyword_triggers, vocab_string)
+#   weight: base priority (higher = more likely to be included)
+#   keyword_triggers: if recent context contains these words, boost this category
+#   vocab_string: comma-separated terms for Whisper prompt
+# ---------------------------------------------------------------------------
+_VOCAB_CATEGORIES: list[tuple[int, set[str], str]] = [
+    # --- Always-include core (weight 100) ---
+    (100, set(), (
+        "Zscaler, ZIA, ZPA, ZDX, ZCC, ZTNA, SASE, SSE, "
+        "Zero Trust, DLP, CASB, SWG, SD-WAN"
+    )),
+
+    # --- Zscaler products (weight 80) ---
+    (80, {"zscaler", "zia", "zpa", "zdx", "zcc", "connector", "edge"}, (
+        "Zscaler Client Connector, Zscaler Internet Access, "
+        "Zscaler Private Access, Zscaler Digital Experience, "
+        "Zero Trust Exchange, Risk360, ZEN, ZWS, ZTE"
+    )),
+
+    # --- Zscaler architecture (weight 60) ---
+    (60, {"connector", "edge", "tunnel", "nanolog", "nss", "segment", "policy"}, (
+        "App Connector, Service Edge, Cloud Connector, Branch Connector, "
+        "Nanolog, NSS, Z-Tunnel, Microtunnel, "
+        "App Segment, Segment Group, Server Group, Access Policy, "
+        "Forwarding Profile, CloudPath"
+    )),
+
+    # --- SASE/SSE architecture (weight 70) ---
+    (70, {"sase", "sse", "casb", "dlp", "swg", "proxy", "inspection", "tunnel"}, (
+        "Secure Access Service Edge, Security Service Edge, "
+        "Cloud Access Security Broker, Data Loss Prevention, "
+        "Secure Web Gateway, FWaaS, RBI, ZTNA, "
+        "forward proxy, reverse proxy, SSL inspection, "
+        "split tunnel, GRE tunnel, IPsec tunnel, PAC file"
+    )),
+
+    # --- Security operations (weight 50) ---
+    (50, {"siem", "soar", "soc", "edr", "xdr", "threat", "malware", "attack"}, (
+        "SIEM, SOAR, SOC, EDR, XDR, MDR, NDR, "
+        "APT, CVE, IOC, MITRE ATT&CK, Zero Trust, "
+        "malware, ransomware, phishing, lateral movement, "
+        "data exfiltration, zero-day"
+    )),
+
+    # --- Data protection features (weight 50) ---
+    (50, {"edm", "idm", "sandbox", "dlp", "data", "protection", "ocr"}, (
+        "SSMA, EDM, Exact Data Match, IDM, CDR, OCR, "
+        "Cloud Sandbox, Cloud Firewall, Cloud IPS, DNS Security, ATP, "
+        "CSPM, DSPM, SSPM, CNAPP, EASM, ITDR"
+    )),
+
+    # --- Networking (weight 40) ---
+    (40, {"network", "bandwidth", "latency", "mpls", "bgp", "wan", "vpn", "dns"}, (
+        "SD-WAN, MPLS, BGP, IPsec, TCP, UDP, DNS, TLS, SSL, "
+        "VLAN, QoS, Gbps, Mbps, bandwidth, throughput, latency, "
+        "firewall, proxy, VPN"
+    )),
+
+    # --- Identity (weight 40) ---
+    (40, {"identity", "saml", "sso", "mfa", "okta", "ldap", "auth", "idp"}, (
+        "IdP, SAML, SCIM, OAuth, MFA, SSO, "
+        "Active Directory, Entra ID, Okta, LDAP, RBAC, IAM, PAM"
+    )),
+
+    # --- Cloud & infra (weight 30) ---
+    (30, {"cloud", "aws", "azure", "gcp", "kubernetes", "docker", "saas"}, (
+        "SaaS, IaaS, PaaS, AWS, Azure, GCP, Kubernetes, "
+        "Terraform, on-premises, hybrid cloud, multi-cloud, "
+        "DevOps, DevSecOps, CI/CD, API"
+    )),
+
+    # --- Encryption & certificates (weight 30) ---
+    (30, {"tls", "ssl", "certificate", "pki", "encryption", "mtls"}, (
+        "PKI, TLS 1.3, mTLS, SSL certificate, "
+        "encryption at rest, encryption in transit"
+    )),
+
+    # --- Zscaler partner & business (weight 20) ---
+    (20, {"partner", "zenith", "alpine", "msp", "bundle", "license"}, (
+        "Zenith, Alpine, Basecamp, Z-Flex, ZCCP, MSP, MSSP, "
+        "ThreatLabz, Zpedia, Business bundle, Transformation bundle"
+    )),
+
+    # --- Business acronyms (weight 20) ---
+    (20, {"roi", "poc", "rfp", "sla", "budget", "cost"}, (
+        "SLA, RFP, ROI, TCO, OPEX, CAPEX, POC, POV, ARR, "
+        "CIO, CISO, CTO, C-level"
+    )),
+]
+
+# Rough token estimate: ~1 token per word/acronym (Whisper uses tiktoken).
+# We budget 200 tokens for vocab to leave room for accent prompt + context.
+_MAX_PROMPT_TOKENS = 224
+_ACCENT_TOKENS = 15  # ~15 tokens for the short accent prompt
+_CONTEXT_TOKENS_RESERVE = 50  # reserve for recent transcription context
+_VOCAB_TOKEN_BUDGET = _MAX_PROMPT_TOKENS - _ACCENT_TOKENS - _CONTEXT_TOKENS_RESERVE
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token count estimate. Whisper tokenizer averages ~1 token per word
+    for English, with acronyms and punctuation counted as separate tokens."""
+    # Split on whitespace and commas for a fast approximation
+    words = text.replace(",", " ").split()
+    return len(words)
+
+
+def _select_vocab(context_keywords: set[str]) -> str:
+    """Select domain vocabulary categories that fit within token budget.
+
+    Prioritizes categories whose trigger keywords match recent context,
+    then fills remaining budget with highest-weight categories.
+    """
+    # Score each category: base weight + context match bonus
+    scored: list[tuple[int, str]] = []
+    for weight, triggers, vocab in _VOCAB_CATEGORIES:
+        score = weight
+        if triggers and context_keywords:
+            overlap = triggers & context_keywords
+            if overlap:
+                score += 200 * len(overlap)  # big boost for context match
+        scored.append((score, vocab))
+
+    # Sort by score descending
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # Greedily fill budget
+    selected: list[str] = []
+    used_tokens = 0
+    for _score, vocab in scored:
+        tokens = _estimate_tokens(vocab)
+        if used_tokens + tokens <= _VOCAB_TOKEN_BUDGET:
+            selected.append(vocab)
+            used_tokens += tokens
+        elif used_tokens == 0:
+            # First category — truncate to fit
+            words = vocab.replace(",", " ,").split()
+            truncated: list[str] = []
+            for w in words:
+                if used_tokens >= _VOCAB_TOKEN_BUDGET:
+                    break
+                truncated.append(w)
+                if w != ",":
+                    used_tokens += 1
+            selected.append(" ".join(truncated).replace(" ,", ","))
+
+    return " ".join(selected)
 
 
 # ---------------------------------------------------------------------------
@@ -1044,7 +1088,7 @@ class Transcriber:
 
         # Auto beam_size: GPU can afford higher beam, CPU needs speed
         if beam_size <= 0:
-            beam_size = 3 if resolved == "cuda" else 1
+            beam_size = 5 if resolved == "cuda" else 3
             print(f"[INFO] Auto beam_size={beam_size} for device={resolved}")
 
         if resolved.startswith("openvino"):
@@ -1061,16 +1105,54 @@ class Transcriber:
         self.language = language
         self._accent_boost = accent_boost
         self._context: deque[str] = deque(maxlen=context_window)
+        # Track keywords from recent context for dynamic vocab selection
+        self._context_keywords: set[str] = set()
 
-    def _build_context_prompt(self) -> str | None:
-        """Build a prompt from recent transcriptions for context inference."""
+    def _extract_keywords(self, text: str) -> set[str]:
+        """Extract lowercase keywords from text for vocab category matching."""
+        # Only keep words 3+ chars to avoid noise from short common words
+        words = re.findall(r"[a-zA-Z][\w-]{2,}", text.lower())
+        return set(words)
+
+    def _build_context_prompt(self) -> str:
+        """Build a token-budget-aware prompt from vocab + recent context.
+
+        Whisper's initial_prompt is limited to 224 tokens. This method:
+        1. Starts with a compact accent hint (~15 tokens)
+        2. Dynamically selects domain vocab categories based on recent context
+           keywords, fitting within ~159 token budget
+        3. Appends the most recent context sentence (~50 tokens reserved)
+
+        Total: ~224 tokens max — nothing gets silently truncated by Whisper.
+        """
         parts = []
+
         if self._accent_boost:
             parts.append(_ACCENT_PROMPT)
-        parts.append(_DOMAIN_VOCAB)
+
+        # Select domain vocabulary based on what we've been hearing
+        vocab = _select_vocab(self._context_keywords)
+        if vocab:
+            parts.append(vocab)
+
+        # Add last 1-2 context sentences (most recent is most useful)
         if self._context:
-            parts.append(" ".join(self._context))
-        return " ".join(parts) if parts else None
+            # Use only the last sentence to stay within budget
+            last = list(self._context)[-1]
+            # Truncate context to fit within reserve
+            ctx_words = last.split()
+            if len(ctx_words) > _CONTEXT_TOKENS_RESERVE:
+                last = " ".join(ctx_words[-_CONTEXT_TOKENS_RESERVE:])
+            parts.append(last)
+
+        prompt = " ".join(parts) if parts else ""
+
+        # Final safety: hard truncate to ~224 tokens worth of words
+        words = prompt.split()
+        if len(words) > _MAX_PROMPT_TOKENS:
+            prompt = " ".join(words[:_MAX_PROMPT_TOKENS])
+
+        return prompt or ""
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> str:
         """
@@ -1094,15 +1176,23 @@ class Transcriber:
             if _is_repetitive(full_text):
                 print(f"[WARN] Filtered repetitive hallucination: {full_text[:80]}...")
                 self._context.clear()
+                self._context_keywords.clear()
                 return ""
 
         # Post-process: correct domain-specific terms
         if full_text:
             full_text = _correct_domain_terms(full_text)
             self._context.append(full_text)
+            # Update context keywords for dynamic vocab selection
+            new_kw = self._extract_keywords(full_text)
+            self._context_keywords.update(new_kw)
+            # Keep keyword set bounded (last ~100 keywords)
+            if len(self._context_keywords) > 100:
+                self._context_keywords = set(list(self._context_keywords)[-80:])
 
         return full_text
 
     def reset_context(self):
         """Clear the context history."""
         self._context.clear()
+        self._context_keywords.clear()
